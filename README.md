@@ -47,7 +47,7 @@ Run the ipmap file in the directory
 ./ipmap
 ```
 
-### Contributors
+## Contributors
 Thanks go to these wonderful people
 <table>
   <tbody>
