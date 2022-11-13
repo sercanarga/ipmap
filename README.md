@@ -1,4 +1,4 @@
-# ipmap ![release](https://badgen.net/github/release/sercanarga/ipmap) ![download](https://badgen.net/github/assets-dl/sercanarga/ipmap/Latest) ![license](https://badgen.net/github/license/sercanarga/ipmap)
+# ipmap ![goreport](https://goreportcard.com/badge/github.com/sercanarga/ipmap) ![release](https://badgen.net/github/release/sercanarga/ipmap) ![download](https://badgen.net/github/assets-dl/sercanarga/ipmap/Latest) ![license](https://badgen.net/github/license/sercanarga/ipmap)
 
 ipmap is an open source, cross-platform and powerful network analysis tool.
 
