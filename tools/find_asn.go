@@ -14,7 +14,7 @@ var (
 	Websites  [][]string
 )
 
-func FindASN(asn string, domain string, domainTitle string, con bool, export bool, timeout int) {
+func FindASN(asn string, domain string, domainTitle string, con bool, export bool, timeout int, interruptData *modules.InterruptData) {
 	re := regexp.MustCompile(`(?m)route:\s+([0-9\.\/]+)$`)
 	for _, match := range re.FindAllStringSubmatch(modules.FindIPBlocks(asn), -1) {
 		IPBlocks = append(IPBlocks, match[1])
@@ -29,11 +29,16 @@ func FindASN(asn string, domain string, domainTitle string, con bool, export boo
 		IPAddress = append(IPAddress, ips...)
 	}
 
+	// Update interrupt data with IP blocks
+	if interruptData != nil {
+		interruptData.IPBlocks = IPBlocks
+	}
+
 	fmt.Println("ASN:         " + asn +
 		"\nIP Block:    " + strconv.Itoa(len(IPBlocks)) +
 		"\nIP Address:  " + strconv.Itoa(len(IPAddress)) +
 		"\nStart Time:  " + time.Now().Local().String() +
 		"\nEnd Time:    " + time.Now().Add((time.Millisecond*time.Duration(timeout))*time.Duration(len(IPAddress))).Local().String())
 
-	modules.ResolveSite(IPAddress, Websites, domainTitle, IPBlocks, domain, con, export, timeout)
+	modules.ResolveSite(IPAddress, Websites, domainTitle, IPBlocks, domain, con, export, timeout, interruptData)
 }
