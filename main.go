@@ -3,10 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"ipmap/config"
 	"ipmap/modules"
 	"ipmap/tools"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 var (
@@ -16,11 +20,37 @@ var (
 	timeout     = flag.Int("t", 0, "timeout parameter")
 	con         = flag.Bool("c", false, "continue parameter")
 	export      = flag.Bool("export", false, "export parameter")
+	verbose     = flag.Bool("v", false, "verbose mode")
+	format      = flag.String("format", "text", "output format (text/json)")
+	workers     = flag.Int("workers", 100, "number of concurrent workers")
 	DomainTitle string
+
+	// Global state for interrupt handling
+	interruptData *modules.InterruptData
 )
 
 func main() {
 	flag.Parse()
+
+	// Set global config
+	config.Verbose = *verbose
+	config.Format = *format
+	config.Workers = *workers
+
+	// Setup interrupt handler
+	interruptData = &modules.InterruptData{}
+	setupInterruptHandler()
+
+	// Validate workers count
+	if config.Workers < 1 {
+		fmt.Println("Workers count must be at least 1, setting to 1")
+		config.Workers = 1
+	}
+	if config.Workers > 1000 {
+		fmt.Println("Workers count too high, setting to 1000")
+		config.Workers = 1000
+	}
+
 	if (*asn != "" && *ip != "") || (*asn == "" && *ip == "") {
 		fmt.Println("======================================================\n" +
 			"      ipmap v1.0 (github.com/sercanarga/ipmap)\n" +
@@ -29,9 +59,12 @@ func main() {
 			"-asn AS13335\n" +
 			"-ip 103.21.244.0/22,103.22.200.0/22\n" +
 			"-d example.com\n" +
-			"-t 200 (timout default:auto)\n" +
+			"-t 200 (timeout default:auto)\n" +
 			"--c (work until finish scanning)\n" +
-			"--export (auto export results)\n\n" +
+			"--export (auto export results)\n" +
+			"-v (verbose mode)\n" +
+			"-format json (output format: text/json)\n" +
+			"-workers 100 (concurrent workers, default: 100)\n\n" +
 			"USAGES:\n" +
 			"Finding sites by scanning all the IP blocks\nipmap -ip 103.21.244.0/22,103.22.200.0/22\n\n" +
 			"Finding real IP address of site by scanning given IP addresses\nipmap -ip 103.21.244.0/22,103.22.200.0/22 -d example.com\n\n" +
@@ -48,7 +81,10 @@ func main() {
 	if *domain != "" {
 		getDomain := modules.GetDomainTitle(*domain)
 		if len(getDomain) == 0 {
-			fmt.Println("Domain not resolved.")
+			fmt.Println("Domain not resolved. Please check:")
+			fmt.Println("  - Domain is accessible via HTTP/HTTPS")
+			fmt.Println("  - No network/firewall issues")
+			fmt.Println("  - Domain name is correct")
 			return
 		}
 		DomainTitle = getDomain[0]
@@ -61,13 +97,48 @@ func main() {
 
 	if *ip != "" {
 		splitIP := strings.Split(*ip, ",")
-		tools.FindIP(splitIP, *domain, DomainTitle, *con, *export, *timeout)
+		interruptData.IPBlocks = splitIP
+		interruptData.Domain = DomainTitle
+		interruptData.Timeout = *timeout
+		tools.FindIP(splitIP, *domain, DomainTitle, *con, *export, *timeout, interruptData)
 		return
 	}
 
 	if *asn != "" {
-		tools.FindASN(*asn, *domain, DomainTitle, *con, *export, *timeout)
+		interruptData.Domain = DomainTitle
+		interruptData.Timeout = *timeout
+		tools.FindASN(*asn, *domain, DomainTitle, *con, *export, *timeout, interruptData)
 		return
 	}
 
+}
+
+func setupInterruptHandler() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println("\n\n[!] Scan interrupted by user")
+
+		if interruptData != nil && len(interruptData.Websites) > 0 {
+			fmt.Printf("\n[*] Found %d websites before interruption\n", len(interruptData.Websites))
+			fmt.Print("\nDo you want to export the results? (Y/n): ")
+
+			var response string
+			fmt.Scanln(&response)
+
+			if response == "y" || response == "Y" || response == "" {
+				modules.PrintResult("Search Interrupted", interruptData.Domain, interruptData.Timeout,
+					interruptData.IPBlocks, interruptData.Websites, true)
+				fmt.Println("\n[✓] Results exported successfully")
+			} else {
+				fmt.Println("\n[✗] Export canceled")
+			}
+		} else {
+			fmt.Println("\n[!] No results to export")
+		}
+
+		os.Exit(0)
+	}()
 }

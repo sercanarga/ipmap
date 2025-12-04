@@ -13,6 +13,12 @@ func CalcIPAddress(cidr string) ([]string, error) {
 		ips = append(ips, ip.String())
 	}
 
+	// Handle single IP case (/32 or /128)
+	if len(ips) <= 2 {
+		return ips, nil
+	}
+
+	// Remove network and broadcast addresses
 	return ips[1 : len(ips)-1], nil
 }
 
