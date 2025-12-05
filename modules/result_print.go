@@ -50,8 +50,6 @@ func exportFile(result string, isJSON bool, domain string) {
 	}
 
 	config.InfoLog("Successfully exported: " + fileName)
-	return
-
 }
 
 func PrintResult(method string, title string, timeout int, ipblocks []string, founded [][]string, export bool) {

@@ -64,6 +64,53 @@ ipmap -asn AS13335 -d example.com --export
 ipmap -asn AS13335 -workers 200 -v
 ```
 
+## Proxy Usage
+
+ipmap supports HTTP, HTTPS, and SOCKS5 proxies for anonymous scanning and bypassing network restrictions.
+
+### Proxy Parameters
+```bash
+-proxy http://127.0.0.1:8080        # HTTP proxy
+-proxy https://127.0.0.1:8080       # HTTPS proxy
+-proxy socks5://127.0.0.1:1080      # SOCKS5 proxy
+-rate 50                            # Rate limit (requests/second)
+-dns 8.8.8.8,1.1.1.1               # Custom DNS servers
+```
+
+### Proxy Examples
+
+**Basic HTTP proxy:**
+```bash
+ipmap -asn AS13335 -proxy http://127.0.0.1:8080
+```
+
+**SOCKS5 proxy with Tor:**
+```bash
+ipmap -asn AS13335 -proxy socks5://127.0.0.1:9050
+```
+
+**Proxy with authentication:**
+```bash
+ipmap -asn AS13335 -proxy http://user:password@proxy.example.com:8080
+```
+
+**Proxy with rate limiting:**
+```bash
+ipmap -asn AS13335 -proxy http://127.0.0.1:8080 -rate 50
+```
+
+**Proxy with custom DNS:**
+```bash
+ipmap -asn AS13335 -proxy socks5://127.0.0.1:1080 -dns 8.8.8.8,1.1.1.1
+```
+
+**Full configuration example:**
+```bash
+ipmap -asn AS13335 -d example.com -proxy http://127.0.0.1:8080 -rate 100 -workers 50 -v --export
+```
+
+> **Note:** When using proxies, consider reducing the worker count (`-workers`) and enabling rate limiting (`-rate`) to avoid overwhelming the proxy server.
+
 ## Building
 
 ```bash
