@@ -137,7 +137,7 @@ func setupInterruptHandler() {
 			fmt.Print("\nDo you want to export the results? (Y/n): ")
 
 			var response string
-			fmt.Scanln(&response)
+			_, _ = fmt.Scanln(&response)
 
 			if response == "y" || response == "Y" || response == "" {
 				modules.PrintResult("Search Interrupted", interruptData.Domain, interruptData.Timeout,

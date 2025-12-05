@@ -22,7 +22,7 @@ func TestVerboseLog(t *testing.T) {
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "[VERBOSE]") {
@@ -43,7 +43,7 @@ func TestVerboseLog(t *testing.T) {
 	os.Stdout = old
 
 	buf.Reset()
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output = buf.String()
 
 	if output != "" {
@@ -63,7 +63,7 @@ func TestErrorLog(t *testing.T) {
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "[ERROR]") {
@@ -86,7 +86,7 @@ func TestInfoLog(t *testing.T) {
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "[INFO]") {
