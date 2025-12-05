@@ -2,9 +2,10 @@ package modules
 
 import (
 	"fmt"
-	"github.com/schollz/progressbar/v3"
 	"ipmap/config"
 	"sync"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IPBlocks []string, domain string, con bool, export bool, timeout int, interruptData *InterruptData) {
@@ -53,21 +54,21 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 					interruptData.AddWebsite(site)
 				}
 
-				if DomainTitle != "" && site[2] == DomainTitle && con == false {
-					bar.Finish()
+				if DomainTitle != "" && site[2] == DomainTitle && !con {
+					_ = bar.Finish()
 					PrintResult("Search Domain by ASN", DomainTitle, timeout, IPBlocks, Websites, export)
 					return
 				}
 			}
 
 			mu.Lock()
-			bar.Add(1)
+			_ = bar.Add(1)
 			mu.Unlock()
 		}(ip)
 	}
 
 	wg.Wait()
-	bar.Finish()
+	_ = bar.Finish()
 
 	// Process and print results
 	PrintResult("Search All ASN/IP", DomainTitle, timeout, IPBlocks, Websites, export)

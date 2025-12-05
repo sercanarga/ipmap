@@ -68,7 +68,7 @@ func TestResultDataJSONOmitEmpty(t *testing.T) {
 
 	// Verify omitempty works
 	var decoded map[string]interface{}
-	json.Unmarshal(jsonData, &decoded)
+	_ = json.Unmarshal(jsonData, &decoded)
 
 	if _, exists := decoded["search_site"]; exists {
 		t.Error("search_site should be omitted when empty")
