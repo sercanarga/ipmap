@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ipmap Multi-Platform Build Script
-# Builds for macOS (ARM64 + AMD64) and Linux (AMD64)
+# Builds for macOS (ARM64 + AMD64) and Linux (AMD64 + 386)
 
 VERSION="2.0"
 APP_NAME="ipmap"
@@ -35,13 +35,24 @@ else
 fi
 echo ""
 
-# Build for Linux AMD64
-echo "📦 Building for Linux AMD64..."
+# Build for Linux AMD64 (x64)
+echo "📦 Building for Linux AMD64 (x64)..."
 GOOS=linux GOARCH=amd64 go build -o $BUILD_DIR/${APP_NAME}_linux_amd64 .
 if [ $? -eq 0 ]; then
     echo "✅ Linux AMD64 build successful: $BUILD_DIR/${APP_NAME}_linux_amd64"
 else
     echo "❌ Linux AMD64 build failed"
+    exit 1
+fi
+echo ""
+
+# Build for Linux 386 (x86)
+echo "📦 Building for Linux 386 (x86)..."
+GOOS=linux GOARCH=386 go build -o $BUILD_DIR/${APP_NAME}_linux_386 .
+if [ $? -eq 0 ]; then
+    echo "✅ Linux 386 build successful: $BUILD_DIR/${APP_NAME}_linux_386"
+else
+    echo "❌ Linux 386 build failed"
     exit 1
 fi
 echo ""
@@ -63,4 +74,5 @@ echo ""
 echo "🎯 Usage:"
 echo "  macOS ARM64:  ./$BUILD_DIR/${APP_NAME}_darwin_arm64 --help"
 echo "  macOS Intel:  ./$BUILD_DIR/${APP_NAME}_darwin_amd64 --help"
-echo "  Linux:        ./$BUILD_DIR/${APP_NAME}_linux_amd64 --help"
+echo "  Linux x64:    ./$BUILD_DIR/${APP_NAME}_linux_amd64 --help"
+echo "  Linux x86:    ./$BUILD_DIR/${APP_NAME}_linux_386 --help"

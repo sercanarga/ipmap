@@ -23,6 +23,9 @@ var (
 	verbose     = flag.Bool("v", false, "verbose mode")
 	format      = flag.String("format", "text", "output format (text/json)")
 	workers     = flag.Int("workers", 100, "number of concurrent workers")
+	proxy       = flag.String("proxy", "", "proxy URL (http/https/socks5)")
+	rate        = flag.Int("rate", 0, "requests per second (0 = unlimited)")
+	dns         = flag.String("dns", "", "custom DNS servers (comma-separated)")
 	DomainTitle string
 
 	// Global state for interrupt handling
@@ -35,41 +38,49 @@ func main() {
 	// Set global config
 	config.Verbose = *verbose
 	config.Format = *format
-	config.Workers = *workers
+	config.Workers = modules.ValidateWorkerCount(*workers)
+	config.ProxyURL = *proxy
+	config.RateLimit = *rate
+	if *dns != "" {
+		config.DNSServers = strings.Split(*dns, ",")
+	}
 
 	// Setup interrupt handler
 	interruptData = &modules.InterruptData{}
 	setupInterruptHandler()
 
-	// Validate workers count
-	if config.Workers < 1 {
-		fmt.Println("Workers count must be at least 1, setting to 1")
-		config.Workers = 1
-	}
-	if config.Workers > 1000 {
-		fmt.Println("Workers count too high, setting to 1000")
-		config.Workers = 1000
+	// Log configuration if verbose
+	if config.Verbose {
+		config.VerboseLog("Configuration - Workers: %d, Rate Limit: %d/s, Proxy: %s",
+			config.Workers, config.RateLimit, config.ProxyURL)
+		if len(config.DNSServers) > 0 {
+			config.VerboseLog("Custom DNS Servers: %v", config.DNSServers)
+		}
 	}
 
 	if (*asn != "" && *ip != "") || (*asn == "" && *ip == "") {
 		fmt.Println("======================================================\n" +
-			"      ipmap v1.0 (github.com/sercanarga/ipmap)\n" +
+			"      ipmap v2.0 (github.com/sercanarga/ipmap)\n" +
 			"======================================================\n" +
 			"PARAMETERS:\n" +
 			"-asn AS13335\n" +
 			"-ip 103.21.244.0/22,103.22.200.0/22\n" +
 			"-d example.com\n" +
 			"-t 200 (timeout default:auto)\n" +
-			"--c (work until finish scanning)\n" +
+			"-c (work until finish scanning)\n" +
 			"--export (auto export results)\n" +
 			"-v (verbose mode)\n" +
 			"-format json (output format: text/json)\n" +
-			"-workers 100 (concurrent workers, default: 100)\n\n" +
+			"-workers 100 (concurrent workers, default: 100)\n" +
+			"-proxy http://127.0.0.1:8080 (proxy URL)\n" +
+			"-rate 50 (requests per second, 0 = unlimited)\n" +
+			"-dns 8.8.8.8,1.1.1.1 (custom DNS servers)\n\n" +
 			"USAGES:\n" +
 			"Finding sites by scanning all the IP blocks\nipmap -ip 103.21.244.0/22,103.22.200.0/22\n\n" +
 			"Finding real IP address of site by scanning given IP addresses\nipmap -ip 103.21.244.0/22,103.22.200.0/22 -d example.com\n\n" +
 			"Finding sites by scanning all the IP blocks in the ASN\nipmap -asn AS13335\n\n" +
-			"Finding real IP address of site by scanning all IP blocks in ASN\nipmap -asn AS13335 -d example.com")
+			"Finding real IP address of site by scanning all IP blocks in ASN\nipmap -asn AS13335 -d example.com\n\n" +
+			"Using proxy and rate limiting\nipmap -asn AS13335 -proxy http://127.0.0.1:8080 -rate 50")
 		return
 	}
 

@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          
+          # Linux AMD64
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_linux_amd64 .
+          
+          # Linux 386
+          GOOS=linux GOARCH=386 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_linux_386 .
+          
+          # Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_linux_arm64 .
+          
+          # macOS AMD64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_darwin_amd64 .
+          
+          # macOS ARM64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_darwin_arm64 .
+          
+          # Windows AMD64
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_windows_amd64.exe .
+          
+          # Windows 386
+          GOOS=windows GOARCH=386 go build -ldflags="-s -w -X main.Version=${GITHUB_REF_NAME}" -o dist/ipmap_windows_386.exe .
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}

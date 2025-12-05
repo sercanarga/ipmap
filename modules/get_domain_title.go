@@ -6,7 +6,7 @@ import (
 )
 
 func GetDomainTitle(url string) []string {
-	// Try HTTPS first with longer timeout (15 seconds)
+	// Try HTTPS first with longer timeout (30 seconds for slow CDNs)
 	config.InfoLog("Resolving domain: %s", url)
 	config.VerboseLog("Trying HTTPS for domain: %s", url)
 	getTitle := RequestFunc("https://"+url, url, 15000)

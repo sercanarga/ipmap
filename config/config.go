@@ -7,6 +7,11 @@ var (
 	Format     string
 	MaxRetries int = 2   // Default retry count
 	Workers    int = 100 // Default concurrent workers
+
+	// New features
+	ProxyURL   string       // HTTP/HTTPS/SOCKS5 proxy URL
+	RateLimit  int      = 0 // Requests per second (0 = unlimited)
+	DNSServers []string     // Custom DNS servers
 )
 
 // VerboseLog prints message only if verbose mode is enabled
@@ -24,4 +29,9 @@ func ErrorLog(format string, args ...interface{}) {
 // InfoLog prints info messages
 func InfoLog(format string, args ...interface{}) {
 	fmt.Printf("[INFO] "+format+"\n", args...)
+}
+
+// WarnLog prints warning messages
+func WarnLog(format string, args ...interface{}) {
+	fmt.Printf("[WARN] "+format+"\n", args...)
 }
