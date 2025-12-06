@@ -4,6 +4,7 @@ import (
 	"context"
 	"ipmap/config"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,19 @@ func ReverseDNS(ip string) string {
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{
 				Timeout: time.Second * 2,
+			}
+			// Use custom DNS servers if configured
+			if len(config.DNSServers) > 0 {
+				for _, dns := range config.DNSServers {
+					dnsAddr := strings.TrimSpace(dns)
+					if !strings.Contains(dnsAddr, ":") {
+						dnsAddr = dnsAddr + ":53"
+					}
+					conn, err := d.DialContext(ctx, network, dnsAddr)
+					if err == nil {
+						return conn, nil
+					}
+				}
 			}
 			return d.DialContext(ctx, network, address)
 		},
