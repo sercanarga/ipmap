@@ -7,26 +7,128 @@ import (
 	"ipmap/config"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/corpix/uarand"
 )
 
-// Reusable HTTP client with connection pooling
-var httpClient *http.Client
+// HTTP client with lazy initialization
+var (
+	httpClient     *http.Client
+	httpClientOnce sync.Once
+	lastProxyURL   string
+	lastDNSServers string
+	clientMu       sync.RWMutex
+)
 
-func init() {
-	httpClient = createHTTPClient()
+// GetHTTPClient returns the HTTP client, creating or recreating if config changed
+func GetHTTPClient() *http.Client {
+	clientMu.RLock()
+	currentProxy := config.ProxyURL
+	currentDNS := strings.Join(config.DNSServers, ",")
+	needsRecreate := httpClient != nil && (lastProxyURL != currentProxy || lastDNSServers != currentDNS)
+	clientMu.RUnlock()
+
+	if needsRecreate {
+		clientMu.Lock()
+		// Double-check after acquiring write lock
+		if lastProxyURL != currentProxy || lastDNSServers != currentDNS {
+			httpClient = createHTTPClientWithConfig()
+			lastProxyURL = currentProxy
+			lastDNSServers = currentDNS
+			config.VerboseLog("HTTP client recreated with new config (Proxy: %s, DNS: %s)", currentProxy, currentDNS)
+		}
+		clientMu.Unlock()
+		return httpClient
+	}
+
+	httpClientOnce.Do(func() {
+		clientMu.Lock()
+		defer clientMu.Unlock()
+		httpClient = createHTTPClientWithConfig()
+		lastProxyURL = config.ProxyURL
+		lastDNSServers = strings.Join(config.DNSServers, ",")
+	})
+
+	return httpClient
 }
 
-func createHTTPClient() *http.Client {
+// createCustomDialer creates a dialer with optional custom DNS servers
+func createCustomDialer() *net.Dialer {
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	return dialer
+}
+
+// createDialContext creates a DialContext function with optional custom DNS
+func createDialContext() func(ctx context.Context, network, addr string) (net.Conn, error) {
+	dialer := createCustomDialer()
+
+	if len(config.DNSServers) == 0 {
+		return dialer.DialContext
+	}
+
+	// Custom DNS resolver
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 5 * time.Second}
+			// Use first available custom DNS server
+			for _, dns := range config.DNSServers {
+				dnsAddr := strings.TrimSpace(dns)
+				if !strings.Contains(dnsAddr, ":") {
+					dnsAddr = dnsAddr + ":53"
+				}
+				conn, err := d.DialContext(ctx, "udp", dnsAddr)
+				if err == nil {
+					return conn, nil
+				}
+			}
+			// Fallback to default
+			return d.DialContext(ctx, network, address)
+		},
+	}
+
+	config.VerboseLog("Using custom DNS servers: %v", config.DNSServers)
+
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		// Split host and port
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return dialer.DialContext(ctx, network, addr)
+		}
+
+		// Resolve using custom DNS
+		ips, err := resolver.LookupIPAddr(ctx, host)
+		if err != nil || len(ips) == 0 {
+			// Fallback to normal resolution
+			return dialer.DialContext(ctx, network, addr)
+		}
+
+		// Try each resolved IP
+		for _, ip := range ips {
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+		}
+
+		// Fallback
+		return dialer.DialContext(ctx, network, addr)
+	}
+}
+
+func createHTTPClientWithConfig() *http.Client {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS12,
-			// Allow more cipher suites for compatibility
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
@@ -36,21 +138,25 @@ func createHTTPClient() *http.Client {
 				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
 			},
 		},
-		// Connection pooling
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		// Timeouts
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		// Custom dialer with timeout
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		// Enable HTTP/2
-		ForceAttemptHTTP2: true,
+		DialContext:           createDialContext(),
+		ForceAttemptHTTP2:     true,
+	}
+
+	// Configure proxy if specified
+	if config.ProxyURL != "" {
+		proxyURL, err := url.Parse(config.ProxyURL)
+		if err != nil {
+			config.ErrorLog("Invalid proxy URL '%s': %v", config.ProxyURL, err)
+		} else {
+			transport.Proxy = http.ProxyURL(proxyURL)
+			config.VerboseLog("Using proxy: %s", config.ProxyURL)
+		}
 	}
 
 	return &http.Client{
@@ -59,7 +165,6 @@ func createHTTPClient() *http.Client {
 			if len(via) >= 10 {
 				return http.ErrUseLastResponse
 			}
-			// Preserve headers on redirect
 			for key, val := range via[0].Header {
 				if _, ok := req.Header[key]; !ok {
 					req.Header[key] = val
@@ -118,7 +223,7 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
 		req.Header.Set("Sec-Ch-Ua-Platform", `"Windows"`)
 
-		resp, err := httpClient.Do(req)
+		resp, err := GetHTTPClient().Do(req)
 
 		if err != nil {
 			cancel() // Cancel on error
