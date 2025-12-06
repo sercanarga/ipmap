@@ -17,6 +17,12 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 	config.VerboseLog("Starting scan with %d concurrent workers", workerCount)
 	sem := make(chan struct{}, workerCount)
 
+	// Create rate limiter
+	rateLimiter := NewRateLimiter(config.RateLimit, config.RateLimit*2)
+	if rateLimiter.IsEnabled() {
+		config.VerboseLog("Rate limiting enabled: %d requests/second", config.RateLimit)
+	}
+
 	// Create progress bar
 	bar := progressbar.NewOptions(len(IPAddress),
 		progressbar.OptionEnableColorCodes(true),
@@ -40,6 +46,9 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 		go func(ip string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+
+			// Wait for rate limiter before making request
+			rateLimiter.Wait()
 
 			site := GetSite(ip, domain, timeout)
 			if len(site) > 0 {
