@@ -128,6 +128,7 @@ go test ./... -v
 ## License
 
 This project is open-source and available under the MIT License.
+
 ## Contributors
 Thanks go to these wonderful people
 <table>
@@ -150,7 +151,7 @@ Thanks go to these wonderful people
             <b>Samet</b>
           </sub>
         </a>
-      </td
+      </td>
       <td align="center">
         <a href="https://github.com/lordixir">
           <img src="https://avatars.githubusercontent.com/u/38049901?v=4" width="100px;" alt=""/>
@@ -159,8 +160,9 @@ Thanks go to these wonderful people
             <b>Murat</b>
           </sub>
         </a>
-      </td
+      </td>
     </tr>
   </tbody>
 </table>
+
 
