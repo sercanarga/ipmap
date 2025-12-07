@@ -151,6 +151,15 @@ Thanks go to these wonderful people
           </sub>
         </a>
       </td
+      <td align="center">
+        <a href="https://github.com/lordixir">
+          <img src="https://avatars.githubusercontent.com/u/38049901?v=4" width="100px;" alt=""/>
+          <br />
+          <sub>
+            <b>Murat</b>
+          </sub>
+        </a>
+      </td
     </tr>
   </tbody>
 </table>
