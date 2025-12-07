@@ -128,3 +128,30 @@ go test ./... -v
 ## License
 
 This project is open-source and available under the MIT License.
+## Contributors
+Thanks go to these wonderful people
+<table>
+  <tbody>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/ertugrulturan">
+          <img src="https://avatars.githubusercontent.com/u/60829297?v=4" width="100px;" alt=""/>
+          <br />
+          <sub>
+            <b>Ertuğrul TURAN</b>
+          </sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/sametcodes">
+          <img src="https://avatars.githubusercontent.com/u/9467273?v=4" width="100px;" alt=""/>
+          <br />
+          <sub>
+            <b>Samet</b>
+          </sub>
+        </a>
+      </td
+    </tr>
+  </tbody>
+</table>
+
