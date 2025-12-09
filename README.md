@@ -3,18 +3,23 @@
 An open-source, cross-platform powerful network analysis tool for discovering websites hosted on specific IP addresses and ASN ranges.
 
 ## Features
-- ASN scanning (Autonomous System Number)
+
+- ASN scanning (Autonomous System Number) with IPv4/IPv6 support
 - IP block scanning (CIDR format)
-- HTTPS/HTTP support
-- DNS resolution
+- HTTPS/HTTP automatic fallback
+- Firewall bypass techniques (IP shuffling, header randomization, jitter)
+- Proxy support (HTTP/HTTPS/SOCKS5)
+- Custom DNS servers
+- Rate limiting (token bucket algorithm)
+- Dynamic timeout calculation
 - Text and JSON output formats
 - Configurable concurrent workers (1-1000)
 - Real-time progress bar
-- Graceful interrupt handling with result export
+- Graceful Ctrl+C handling with result export
 
 ## Installation
 
-Download the latest version from [Releases](https://github.com/sercanarga/ipmap/releases) and run:
+Download the latest version from [Releases](https://github.com/lordixir/ipmap/releases) and run:
 
 ```bash
 unzip ipmap.zip
@@ -25,23 +30,27 @@ chmod +x ipmap
 ## Usage
 
 ### Parameters
+
 ```bash
 -asn AS13335                         # Scan all IP blocks in the ASN
 -ip 103.21.244.0/22                  # Scan specified IP blocks
 -d example.com                       # Search for specific domain
--t 200                               # Request timeout in milliseconds
+-t 2000                              # Request timeout in milliseconds (auto-calculated if not set)
 --export                             # Auto-export results
 -format json                         # Output format (text or json)
--workers 100                         # Number of concurrent workers
+-workers 100                         # Number of concurrent workers (default: 100)
 -v                                   # Verbose mode
 -c                                   # Continue scanning until completion
+-proxy http://127.0.0.1:8080         # Proxy URL (HTTP/HTTPS/SOCKS5)
+-rate 50                             # Rate limit (requests/second, 0 = unlimited)
+-dns 8.8.8.8,1.1.1.1                # Custom DNS servers
 ```
 
 ### Examples
 
-**Scan ASN:**
+**Basic ASN scan (auto timeout):**
 ```bash
-ipmap -asn AS13335 -t 300
+ipmap -asn AS13335
 ```
 
 **Find domain in ASN:**
@@ -51,12 +60,7 @@ ipmap -asn AS13335 -d example.com
 
 **Scan IP blocks:**
 ```bash
-ipmap -ip 103.21.244.0/22,103.22.200.0/22 -t 300
-```
-
-**Export results:**
-```bash
-ipmap -asn AS13335 -d example.com --export
+ipmap -ip 103.21.244.0/22,103.22.200.0/22
 ```
 
 **High-performance scan:**
@@ -64,57 +68,67 @@ ipmap -asn AS13335 -d example.com --export
 ipmap -asn AS13335 -workers 200 -v
 ```
 
-## Proxy Usage
-
-ipmap supports HTTP, HTTPS, and SOCKS5 proxies for anonymous scanning and bypassing network restrictions.
-
-### Proxy Parameters
+**Export results:**
 ```bash
--proxy http://127.0.0.1:8080        # HTTP proxy
--proxy https://127.0.0.1:8080       # HTTPS proxy
--proxy socks5://127.0.0.1:1080      # SOCKS5 proxy
--rate 50                            # Rate limit (requests/second)
--dns 8.8.8.8,1.1.1.1               # Custom DNS servers
+ipmap -asn AS13335 -d example.com --export
 ```
 
-### Proxy Examples
+**JSON output:**
+```bash
+ipmap -asn AS13335 -format json --export
+```
 
-**Basic HTTP proxy:**
+## Proxy & Rate Limiting
+
+ipmap supports HTTP, HTTPS, and SOCKS5 proxies for anonymous scanning.
+
+**HTTP proxy:**
 ```bash
 ipmap -asn AS13335 -proxy http://127.0.0.1:8080
 ```
 
-**SOCKS5 proxy with Tor:**
+**SOCKS5 proxy (Tor):**
 ```bash
 ipmap -asn AS13335 -proxy socks5://127.0.0.1:9050
 ```
 
-**Proxy with authentication:**
+**Proxy with auth:**
 ```bash
-ipmap -asn AS13335 -proxy http://user:password@proxy.example.com:8080
+ipmap -asn AS13335 -proxy http://user:pass@proxy.com:8080
 ```
 
-**Proxy with rate limiting:**
+**Rate limiting:**
 ```bash
-ipmap -asn AS13335 -proxy http://127.0.0.1:8080 -rate 50
+ipmap -asn AS13335 -rate 50 -workers 50
 ```
 
-**Proxy with custom DNS:**
+**Full configuration:**
 ```bash
-ipmap -asn AS13335 -proxy socks5://127.0.0.1:1080 -dns 8.8.8.8,1.1.1.1
+ipmap -asn AS13335 -d example.com -proxy http://127.0.0.1:8080 -rate 100 -workers 50 -dns 8.8.8.8 -v --export
 ```
 
-**Full configuration example:**
-```bash
-ipmap -asn AS13335 -d example.com -proxy http://127.0.0.1:8080 -rate 100 -workers 50 -v --export
-```
+> **Note:** When using proxies, reduce worker count and enable rate limiting to avoid overwhelming the proxy.
 
-> **Note:** When using proxies, consider reducing the worker count (`-workers`) and enabling rate limiting (`-rate`) to avoid overwhelming the proxy server.
+## Firewall Bypass Features
+
+ipmap includes built-in firewall bypass techniques:
+
+- **IP Shuffling:** Randomizes scan order to avoid sequential pattern detection
+- **Header Randomization:** Rotates User-Agent, Accept-Language, Chrome versions, platforms
+- **Request Jitter:** Adds random 0-50ms delay between requests
+- **Dynamic Timeout:** Auto-adjusts timeout based on worker count
+
+## Interrupt Handling (Ctrl+C)
+
+Press Ctrl+C during scan to:
+1. Immediately stop all scanning
+2. View found results count
+3. Option to export partial results
 
 ## Building
 
 ```bash
-git clone https://github.com/sercanarga/ipmap.git
+git clone https://github.com/lordixir/ipmap.git
 cd ipmap
 go build -o ipmap .
 ```
@@ -124,6 +138,19 @@ go build -o ipmap .
 ```bash
 go test ./... -v
 ```
+
+## Changelog (v2.0)
+
+- ✅ Added IP shuffling for firewall bypass
+- ✅ Added request jitter (0-50ms random delay)
+- ✅ Added header randomization (language, chrome version, platform)
+- ✅ Fixed Ctrl+C interrupt handling (immediate stop)
+- ✅ Added dynamic timeout calculation based on workers
+- ✅ Added IPv6 support for ASN scanning
+- ✅ Improved error logging
+- ✅ Fixed result collection bug with high workers
+- ✅ Removed gzip to fix response parsing
+- ✅ Added scan statistics at completion
 
 ## License
 
