@@ -125,6 +125,16 @@ func createDialContext() func(ctx context.Context, network, addr string) (net.Co
 }
 
 func createHTTPClientWithConfig() *http.Client {
+	// Calculate connection pool size based on worker count
+	maxConns := config.Workers
+	if maxConns < 100 {
+		maxConns = 100
+	}
+	maxConnsPerHost := maxConns / 10
+	if maxConnsPerHost < 10 {
+		maxConnsPerHost = 10
+	}
+
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -138,14 +148,16 @@ func createHTTPClientWithConfig() *http.Client {
 				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
 			},
 		},
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   10,
+		MaxIdleConns:          maxConns,
+		MaxIdleConnsPerHost:   maxConnsPerHost,
+		MaxConnsPerHost:       maxConnsPerHost * 2, // Allow more active connections
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext:           createDialContext(),
 		ForceAttemptHTTP2:     true,
+		DisableKeepAlives:     false, // Keep connections alive for reuse
 	}
 
 	// Configure proxy if specified
@@ -210,8 +222,18 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 		ua := uarand.GetRandom()
 		req.Header.Set("User-Agent", ua)
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9,tr;q=0.8")
-		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+
+		// Randomize Accept-Language to avoid fingerprinting
+		languages := []string{
+			"en-US,en;q=0.9",
+			"en-GB,en;q=0.9",
+			"en-US,en;q=0.9,tr;q=0.8",
+			"de-DE,de;q=0.9,en;q=0.8",
+			"fr-FR,fr;q=0.9,en;q=0.8",
+		}
+		req.Header.Set("Accept-Language", languages[time.Now().UnixNano()%int64(len(languages))])
+
+		req.Header.Set("Accept-Encoding", "identity") // No compression to avoid decompression issues
 		req.Header.Set("Connection", "keep-alive")
 		req.Header.Set("Upgrade-Insecure-Requests", "1")
 		req.Header.Set("Sec-Fetch-Dest", "document")
@@ -219,9 +241,20 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 		req.Header.Set("Sec-Fetch-Site", "none")
 		req.Header.Set("Sec-Fetch-User", "?1")
 		req.Header.Set("Cache-Control", "max-age=0")
-		req.Header.Set("Sec-Ch-Ua", `"Chromium";v="120", "Not_A Brand";v="24"`)
+
+		// Randomize browser version fingerprint
+		chromeVersions := []string{
+			`"Chromium";v="120", "Not_A Brand";v="24"`,
+			`"Chromium";v="119", "Not_A Brand";v="24"`,
+			`"Chromium";v="121", "Not_A Brand";v="24"`,
+			`"Google Chrome";v="120", "Chromium";v="120"`,
+		}
+		req.Header.Set("Sec-Ch-Ua", chromeVersions[time.Now().UnixNano()%int64(len(chromeVersions))])
 		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
-		req.Header.Set("Sec-Ch-Ua-Platform", `"Windows"`)
+
+		// Randomize platform
+		platforms := []string{`"Windows"`, `"macOS"`, `"Linux"`}
+		req.Header.Set("Sec-Ch-Ua-Platform", platforms[time.Now().UnixNano()%int64(len(platforms))])
 
 		resp, err := GetHTTPClient().Do(req)
 
