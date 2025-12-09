@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var (
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	// Setup interrupt handler
-	interruptData = &modules.InterruptData{}
+	interruptData = modules.NewInterruptData()
 	setupInterruptHandler()
 
 	// Log configuration if verbose
@@ -84,9 +85,19 @@ func main() {
 		return
 	}
 
+	// Set default timeout if not specified and no domain to calculate from
 	if *timeout == 0 && *domain == "" {
-		fmt.Println("Timeout parameter( -t ) is not set. By entering the domain, you can have it calculated automatically.")
-		return
+		// Base timeout: 2000ms, scale up for high worker counts
+		baseTimeout := 2000
+		if *workers > 200 {
+			// Add extra time for high concurrency (network saturation)
+			baseTimeout = baseTimeout + (*workers / 100 * 500)
+		}
+		if baseTimeout > 10000 {
+			baseTimeout = 10000 // Max 10 seconds
+		}
+		*timeout = baseTimeout
+		config.InfoLog("Using auto-calculated timeout: %dms (workers: %d)", *timeout, *workers)
 	}
 
 	if *domain != "" {
@@ -130,7 +141,15 @@ func setupInterruptHandler() {
 
 	go func() {
 		<-sigChan
-		fmt.Println("\n\n[!] Scan interrupted by user")
+		fmt.Println("\n\n[!] Scan interrupted by user - stopping...")
+
+		// Signal all goroutines to stop immediately
+		if interruptData != nil {
+			interruptData.Cancel()
+		}
+
+		// Give goroutines a moment to stop
+		time.Sleep(100 * time.Millisecond)
 
 		if interruptData != nil && len(interruptData.Websites) > 0 {
 			fmt.Printf("\n[*] Found %d websites before interruption\n", len(interruptData.Websites))
