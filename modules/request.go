@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/corpix/uarand"
 )
 
 // HTTP client with lazy initialization
@@ -37,6 +35,10 @@ func GetHTTPClient() *http.Client {
 		clientMu.Lock()
 		// Double-check after acquiring write lock
 		if lastProxyURL != currentProxy || lastDNSServers != currentDNS {
+			// Close idle connections before recreating to prevent leaks
+			if httpClient != nil {
+				httpClient.CloseIdleConnections()
+			}
 			httpClient = createHTTPClientWithConfig()
 			lastProxyURL = currentProxy
 			lastDNSServers = currentDNS
@@ -60,7 +62,7 @@ func GetHTTPClient() *http.Client {
 // createCustomDialer creates a dialer with optional custom DNS servers
 func createCustomDialer() *net.Dialer {
 	dialer := &net.Dialer{
-		Timeout:   10 * time.Second,
+		Timeout:   time.Duration(config.DialTimeout) * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
 	return dialer
@@ -78,7 +80,7 @@ func createDialContext() func(ctx context.Context, network, addr string) (net.Co
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{Timeout: 5 * time.Second}
+			d := net.Dialer{Timeout: 3 * time.Second}
 			// Use first available custom DNS server
 			for _, dns := range config.DNSServers {
 				dnsAddr := strings.TrimSpace(dns)
@@ -125,6 +127,15 @@ func createDialContext() func(ctx context.Context, network, addr string) (net.Co
 }
 
 func createHTTPClientWithConfig() *http.Client {
+	// Use the standard fallback client for reliability
+	// The uTLS transport has HTTP/2 compatibility issues that cause
+	// "malformed HTTP response" errors when servers respond with HTTP/2
+	// Chrome headers are still added in RequestFuncWithRetry for anti-detection
+	return createFallbackHTTPClient()
+}
+
+// createFallbackHTTPClient creates a standard HTTP client as fallback
+func createFallbackHTTPClient() *http.Client {
 	// Calculate connection pool size based on worker count
 	maxConns := config.Workers
 	if maxConns < 100 {
@@ -150,14 +161,14 @@ func createHTTPClientWithConfig() *http.Client {
 		},
 		MaxIdleConns:          maxConns,
 		MaxIdleConnsPerHost:   maxConnsPerHost,
-		MaxConnsPerHost:       maxConnsPerHost * 2, // Allow more active connections
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
+		MaxConnsPerHost:       maxConnsPerHost * 2,
+		IdleConnTimeout:       60 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext:           createDialContext(),
 		ForceAttemptHTTP2:     true,
-		DisableKeepAlives:     false, // Keep connections alive for reuse
+		DisableKeepAlives:     false,
 	}
 
 	// Configure proxy if specified
@@ -197,8 +208,8 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			config.VerboseLog("Retry attempt %d/%d for %s", attempt, maxRetries, ip)
-			// Exponential backoff
-			time.Sleep(time.Duration(attempt*500) * time.Millisecond)
+			// Backoff before retry
+			time.Sleep(time.Duration(attempt*200) * time.Millisecond)
 		}
 
 		n := time.Now()
@@ -218,43 +229,9 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 			req.Host = url
 		}
 
-		// Set realistic browser headers to avoid bot detection
-		ua := uarand.GetRandom()
-		req.Header.Set("User-Agent", ua)
-		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
-
-		// Randomize Accept-Language to avoid fingerprinting
-		languages := []string{
-			"en-US,en;q=0.9",
-			"en-GB,en;q=0.9",
-			"en-US,en;q=0.9,tr;q=0.8",
-			"de-DE,de;q=0.9,en;q=0.8",
-			"fr-FR,fr;q=0.9,en;q=0.8",
-		}
-		req.Header.Set("Accept-Language", languages[time.Now().UnixNano()%int64(len(languages))])
-
-		req.Header.Set("Accept-Encoding", "identity") // No compression to avoid decompression issues
-		req.Header.Set("Connection", "keep-alive")
-		req.Header.Set("Upgrade-Insecure-Requests", "1")
-		req.Header.Set("Sec-Fetch-Dest", "document")
-		req.Header.Set("Sec-Fetch-Mode", "navigate")
-		req.Header.Set("Sec-Fetch-Site", "none")
-		req.Header.Set("Sec-Fetch-User", "?1")
-		req.Header.Set("Cache-Control", "max-age=0")
-
-		// Randomize browser version fingerprint
-		chromeVersions := []string{
-			`"Chromium";v="120", "Not_A Brand";v="24"`,
-			`"Chromium";v="119", "Not_A Brand";v="24"`,
-			`"Chromium";v="121", "Not_A Brand";v="24"`,
-			`"Google Chrome";v="120", "Chromium";v="120"`,
-		}
-		req.Header.Set("Sec-Ch-Ua", chromeVersions[time.Now().UnixNano()%int64(len(chromeVersions))])
-		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
-
-		// Randomize platform
-		platforms := []string{`"Windows"`, `"macOS"`, `"Linux"`}
-		req.Header.Set("Sec-Ch-Ua-Platform", platforms[time.Now().UnixNano()%int64(len(platforms))])
+		// Use Chrome 131 headers from scanner.go for better anti-detection
+		profile := NewRandomChromeProfile()
+		AddRealChromeHeaders(req, profile)
 
 		resp, err := GetHTTPClient().Do(req)
 

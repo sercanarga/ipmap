@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"ipmap/config"
 	"net"
 	"regexp"
 	"strings"
@@ -17,6 +18,24 @@ func ValidateIP(ip string) bool {
 
 	// Check if it's a plain IP
 	return net.ParseIP(ip) != nil
+}
+
+// ValidateIPList validates a comma-separated list of IP addresses or CIDR blocks
+func ValidateIPList(ipList string) bool {
+	if ipList == "" {
+		return false
+	}
+	blocks := strings.Split(ipList, ",")
+	for _, block := range blocks {
+		block = strings.TrimSpace(block)
+		if block == "" {
+			continue
+		}
+		if !ValidateIP(block) {
+			return false
+		}
+	}
+	return len(blocks) > 0
 }
 
 // ValidateASN checks if the given string is a valid ASN format
@@ -128,8 +147,8 @@ func ValidateWorkerCount(workers int) int {
 
 // ValidateTimeout validates and returns a safe timeout value
 func ValidateTimeout(timeout int) int {
-	if timeout < 100 {
-		return 100 // Minimum 100ms
+	if timeout < config.MinTimeout {
+		return config.MinTimeout
 	}
 	if timeout > 60000 {
 		return 60000 // Maximum 60 seconds
