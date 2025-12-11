@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
   - Dial timeout: 10s → 5s
   - Retry backoff: 500ms → 200ms
 - `ValidateTimeout` now uses `config.MinTimeout` constant
-- Updated GitHub URL to `lordixir/ipmap`
+- Updated GitHub URL to `sercanarga/ipmap`
 
 ### Fixed
 - Domain resolution failure with uTLS HTTP/2 compatibility

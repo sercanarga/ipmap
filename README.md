@@ -34,7 +34,7 @@ chmod +x ipmap
 
 **Build from Source:**
 ```bash
-git clone https://github.com/lordixir/ipmap.git
+git clone https://github.com/sercanarga/ipmap.git
 cd ipmap
 go mod tidy
 go build -o ipmap .
@@ -111,7 +111,7 @@ Thanks go to these wonderful people
         </a>
       </td>
       <td align="center">
-        <a href="https://github.com/lordixir">
+        <a href="https://github.com/sercanarga">
           <img src="https://avatars.githubusercontent.com/u/38049901?v=4" width="100px;" alt=""/>
           <br />
           <sub>

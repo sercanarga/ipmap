@@ -61,7 +61,7 @@ func main() {
 
 	if (*asn != "" && *ip != "") || (*asn == "" && *ip == "") {
 		fmt.Println("======================================================\n" +
-			"      ipmap v2.0 (github.com/lordixir/ipmap)\n" +
+			"      ipmap v2.0 (github.com/sercanarga/ipmap)\n" +
 			"======================================================\n" +
 			"PARAMETERS:\n" +
 			"-asn AS13335\n" +

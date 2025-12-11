@@ -5,7 +5,7 @@ Thank you for your interest in contributing to ipmap! We welcome contributions f
 ## How to Contribute
 
 ### Reporting Bugs
-- Check if the bug has already been reported in [Issues](https://github.com/lordixir/ipmap/issues)
+- Check if the bug has already been reported in [Issues](https://github.com/sercanarga/ipmap/issues)
 - Provide a clear description of the bug
 - Include steps to reproduce the issue
 - Attach relevant logs or error messages
@@ -30,7 +30,7 @@ Thank you for your interest in contributing to ipmap! We welcome contributions f
 
 ```bash
 # Clone the repository
-git clone https://github.com/lordixir/ipmap.git
+git clone https://github.com/sercanarga/ipmap.git
 cd ipmap
 
 # Install dependencies
