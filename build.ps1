@@ -1,7 +1,7 @@
 # ipmap Multi-Platform Build Script
 # Builds for macOS (ARM64 + AMD64) and Linux (AMD64)
 
-$VERSION = "2.0"
+$VERSION = "2.2.1"
 $APP_NAME = "ipmap"
 $BUILD_DIR = "bin"
 
