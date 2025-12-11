@@ -61,7 +61,7 @@ func main() {
 
 	if (*asn != "" && *ip != "") || (*asn == "" && *ip == "") {
 		fmt.Println("======================================================\n" +
-			"      ipmap v2.0 (github.com/sercanarga/ipmap)\n" +
+			"      ipmap v2.0 (github.com/lordixir/ipmap)\n" +
 			"======================================================\n" +
 			"PARAMETERS:\n" +
 			"-asn AS13335\n" +
@@ -87,14 +87,14 @@ func main() {
 
 	// Set default timeout if not specified and no domain to calculate from
 	if *timeout == 0 && *domain == "" {
-		// Base timeout: 2000ms, scale up for high worker counts
-		baseTimeout := 2000
+		// Base timeout scales up for high worker counts
+		baseTimeout := config.DefaultBaseTimeout
 		if *workers > 200 {
 			// Add extra time for high concurrency (network saturation)
 			baseTimeout = baseTimeout + (*workers / 100 * 500)
 		}
-		if baseTimeout > 10000 {
-			baseTimeout = 10000 // Max 10 seconds
+		if baseTimeout > config.MaxTimeout {
+			baseTimeout = config.MaxTimeout
 		}
 		*timeout = baseTimeout
 		config.InfoLog("Using auto-calculated timeout: %dms (workers: %d)", *timeout, *workers)
@@ -118,6 +118,12 @@ func main() {
 	}
 
 	if *ip != "" {
+		// Validate IP/CIDR format before processing
+		if !modules.ValidateIPList(*ip) {
+			fmt.Println("[ERROR] Invalid IP/CIDR format: " + *ip)
+			fmt.Println("  Use format: 192.168.1.0/24 or 10.0.0.0/16,172.16.0.0/12")
+			return
+		}
 		splitIP := strings.Split(*ip, ",")
 		interruptData.IPBlocks = splitIP
 		interruptData.Domain = DomainTitle
@@ -127,6 +133,12 @@ func main() {
 	}
 
 	if *asn != "" {
+		// Validate ASN format before processing
+		if !modules.ValidateASN(*asn) {
+			fmt.Println("[ERROR] Invalid ASN format: " + *asn)
+			fmt.Println("  Use format: AS13335 or as13335")
+			return
+		}
 		interruptData.Domain = DomainTitle
 		interruptData.Timeout = *timeout
 		tools.FindASN(*asn, *domain, DomainTitle, *con, *export, *timeout, interruptData)
@@ -159,8 +171,8 @@ func setupInterruptHandler() {
 			_, _ = fmt.Scanln(&response)
 
 			if response == "y" || response == "Y" || response == "" {
-				modules.PrintResult("Search Interrupted", interruptData.Domain, interruptData.Timeout,
-					interruptData.IPBlocks, interruptData.Websites, true)
+				modules.ExportInterruptedResults(interruptData.Websites, interruptData.Domain,
+					interruptData.Timeout, interruptData.IPBlocks)
 				fmt.Println("\n[✓] Results exported successfully")
 			} else {
 				fmt.Println("\n[✗] Export canceled")

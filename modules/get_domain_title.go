@@ -1,28 +1,32 @@
 package modules
 
 import (
+	"html"
 	"ipmap/config"
 	"regexp"
 )
 
+// GetDomainTitle fetches and extracts the title from a domain's HTML page.
+// It tries HTTPS first, then HTTP, and finally with www prefix.
+// Returns [title, responseTime] or empty slice on failure.
 func GetDomainTitle(url string) []string {
-	// Try HTTPS first with longer timeout (30 seconds for slow CDNs)
+	// Try HTTPS first with longer timeout (slow CDNs)
 	config.InfoLog("Resolving domain: %s", url)
 	config.VerboseLog("Trying HTTPS for domain: %s", url)
-	getTitle := RequestFunc("https://"+url, url, 15000)
+	getTitle := RequestFunc("https://"+url, url, config.DefaultDomainTimeout)
 
 	// If HTTPS fails, try HTTP
 	if len(getTitle) == 0 {
 		config.VerboseLog("HTTPS failed, trying HTTP for domain: %s", url)
-		getTitle = RequestFunc("http://"+url, url, 15000)
+		getTitle = RequestFunc("http://"+url, url, config.DefaultDomainTimeout)
 	}
 
 	// If still no response, try with www prefix
 	if len(getTitle) == 0 {
 		config.VerboseLog("Trying with www prefix: www.%s", url)
-		getTitle = RequestFunc("https://www."+url, url, 15000)
+		getTitle = RequestFunc("https://www."+url, url, config.DefaultDomainTimeout)
 		if len(getTitle) == 0 {
-			getTitle = RequestFunc("http://www."+url, url, 15000)
+			getTitle = RequestFunc("http://www."+url, url, config.DefaultDomainTimeout)
 		}
 	}
 
@@ -44,8 +48,10 @@ func GetDomainTitle(url string) []string {
 	match := re.FindStringSubmatch(getTitle[2])
 
 	if len(match) > 1 {
-		config.VerboseLog("Title found: %s", match[1])
-		return []string{match[1], getTitle[3]}
+		// Decode HTML entities (e.g., &amp; -> &, &lt; -> <)
+		decodedTitle := html.UnescapeString(match[1])
+		config.VerboseLog("Title found: %s", decodedTitle)
+		return []string{decodedTitle, getTitle[3]}
 	}
 
 	// If no title found but we got a response, use domain name as title

@@ -19,6 +19,56 @@ type ResultData struct {
 	Timestamp       string     `json:"timestamp"`
 }
 
+// ExportInterruptedResults exports results from an interrupted scan without prompting
+// This is used by the Ctrl+C handler to avoid duplicate export prompts
+func ExportInterruptedResults(websites [][]string, domain string, timeout int, ipBlocks []string) {
+	isJSON := config.Format == "json"
+
+	if isJSON {
+		result := ResultData{
+			Method:          "Search Interrupted",
+			SearchSite:      domain,
+			Timeout:         timeout,
+			IPBlocks:        ipBlocks,
+			FoundedWebsites: websites,
+			Timestamp:       time.Now().Format(time.RFC3339),
+		}
+
+		jsonData, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			config.ErrorLog("JSON marshal error: %v", err)
+			return
+		}
+		exportFile(string(jsonData), true, domain)
+	} else {
+		resultString := "==================== RESULT ===================="
+		resultString += "\nMethod:        Search Interrupted"
+		if domain != "" {
+			resultString += "\nSearch Site:   " + domain
+		}
+		resultString += "\nTimeout:       " + strconv.Itoa(timeout) + "ms"
+		resultString += "\nIP Blocks:     " + strings.Join(ipBlocks, ",")
+		resultString += "\nFounded Websites:\n"
+
+		if len(websites) > 0 {
+			for _, site := range websites {
+				if len(site) >= 4 {
+					resultString += fmt.Sprintf("  %s | %s | %s [%s]\n", site[0], site[1], site[2], site[3])
+				} else if len(site) >= 3 {
+					resultString += fmt.Sprintf("  %s | %s | %s\n", site[0], site[1], site[2])
+				} else if len(site) > 0 {
+					resultString += "  " + strings.Join(site, " | ") + "\n"
+				}
+			}
+		} else {
+			resultString += "  No websites found\n"
+		}
+		resultString += "================================================"
+
+		exportFile(resultString, false, domain)
+	}
+}
+
 func exportFile(result string, isJSON bool, domain string) {
 	ext := ".txt"
 	if isJSON {
@@ -28,10 +78,11 @@ func exportFile(result string, isJSON bool, domain string) {
 	// Generate filename based on domain or timestamp
 	var fileName string
 	if domain != "" {
-		// Sanitize domain name for filename (remove special characters)
-		safeDomain := strings.ReplaceAll(domain, ".", "_")
-		safeDomain = strings.ReplaceAll(safeDomain, "/", "_")
-		safeDomain = strings.ReplaceAll(safeDomain, ":", "_")
+		// Sanitize domain name for filename (remove all special characters)
+		safeDomain := SanitizeFilename(domain)
+		if safeDomain == "" {
+			safeDomain = "export"
+		}
 		fileName = "ipmap_" + safeDomain + "_" + strconv.FormatInt(time.Now().Local().Unix(), 10) + ext
 	} else {
 		fileName = "ipmap_" + strconv.FormatInt(time.Now().Local().Unix(), 10) + "_export" + ext
@@ -79,21 +130,15 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 
 		if export {
 			exportFile(string(jsonData), true, title)
-			return
-		}
-
-		fmt.Print("\nDo you want to export result to file? (Y/n): ")
-		var ex string
-		_, err = fmt.Scanln(&ex)
-		if err != nil {
-			return
-		}
-
-		if ex == "y" || ex == "Y" || ex == "" {
-			exportFile(string(jsonData), true, title)
 		} else {
-			fmt.Println("Export canceled")
+			fmt.Print("\nDo you want to export result to file? (Y/n): ")
+			var ex string
+			_, err = fmt.Scanln(&ex)
+			if err == nil && (ex == "y" || ex == "Y" || ex == "") {
+				exportFile(string(jsonData), true, title)
+			}
 		}
+		fmt.Println("\n[✓] Scan completed")
 	} else {
 		// Text format (original)
 		resultString := "==================== RESULT ===================="
@@ -111,31 +156,29 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 			for _, site := range founded {
 				// Format: Status, IP, Title[, Hostname]
 				if len(site) >= 4 {
-					resultString += site[0] + ", " + site[1] + ", " + site[2] + " [" + site[3] + "]\n"
-				} else {
-					resultString += strings.Join(site, ", ") + "\n"
+					resultString += fmt.Sprintf("  %s | %s | %s [%s]\n", site[0], site[1], site[2], site[3])
+				} else if len(site) >= 3 {
+					resultString += fmt.Sprintf("  %s | %s | %s\n", site[0], site[1], site[2])
+				} else if len(site) > 0 {
+					resultString += "  " + strings.Join(site, " | ") + "\n"
 				}
 			}
+		} else {
+			resultString += "  No websites found\n"
 		}
 		resultString += "================================================"
 		fmt.Println(resultString)
 
 		if export {
 			exportFile(resultString, false, title)
-			return
-		}
-
-		fmt.Print("\nDo you want to export result to file? (Y/n): ")
-		var ex string
-		_, err := fmt.Scanln(&ex)
-		if err != nil {
-			return
-		}
-
-		if ex == "y" || ex == "Y" || ex == "" {
-			exportFile(resultString, false, title)
 		} else {
-			fmt.Println("Export canceled")
+			fmt.Print("\nDo you want to export result to file? (Y/n): ")
+			var ex string
+			_, err := fmt.Scanln(&ex)
+			if err == nil && (ex == "y" || ex == "Y" || ex == "") {
+				exportFile(resultString, false, title)
+			}
 		}
+		fmt.Println("\n[✓] Scan completed")
 	}
 }

@@ -3,38 +3,14 @@ package modules
 import (
 	"fmt"
 	"ipmap/config"
-	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/schollz/progressbar/v3"
 )
 
-// Package-level random generator (initialized once)
-var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
-var rngMu sync.Mutex
-
 // ShuffleIPs randomizes the order of IP addresses to avoid sequential scanning patterns
 func ShuffleIPs(ips []string) []string {
-	shuffled := make([]string, len(ips))
-	copy(shuffled, ips)
-	rngMu.Lock()
-	rng.Shuffle(len(shuffled), func(i, j int) {
-		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-	})
-	rngMu.Unlock()
-	return shuffled
-}
-
-// AddJitter adds random delay to avoid detection patterns
-func AddJitter(maxMs int) {
-	if maxMs <= 0 {
-		return
-	}
-	rngMu.Lock()
-	jitter := rng.Intn(maxMs)
-	rngMu.Unlock()
-	time.Sleep(time.Duration(jitter) * time.Millisecond)
+	return config.ShuffleStrings(ips)
 }
 
 func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IPBlocks []string, domain string, con bool, export bool, timeout int, interruptData *InterruptData) {
@@ -117,8 +93,8 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 			// Wait for rate limiter before making request
 			rateLimiter.Wait()
 
-			// Add random jitter (0-50ms) to avoid detection patterns
-			AddJitter(50)
+			// Add random jitter to avoid detection patterns
+			config.AddJitter()
 
 			site := GetSite(ip, domain, timeout)
 
@@ -127,8 +103,24 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 			mu.Unlock()
 
 			if len(site) > 0 {
+				// Check if cancelled before printing to avoid mixed output
+				if interruptData != nil && interruptData.IsCancelled() {
+					// Still add to websites for export even if cancelled
+					interruptData.AddWebsite(site)
+					return
+				}
 
-				fmt.Println("\n", site)
+				// Format site info nicely for terminal output
+				var siteInfo string
+				if len(site) >= 4 {
+					siteInfo = fmt.Sprintf("[%s] %s - %s [%s]", site[0], site[1], site[2], site[3])
+				} else if len(site) >= 3 {
+					siteInfo = fmt.Sprintf("[%s] %s - %s", site[0], site[1], site[2])
+				} else {
+					siteInfo = fmt.Sprintf("%v", site)
+				}
+				fmt.Printf("\n  ✓ Found: %s\n", siteInfo)
+
 				mu.Lock()
 				foundSites = append(foundSites, site)
 				foundCount++
@@ -149,9 +141,12 @@ func ResolveSite(IPAddress []string, Websites [][]string, DomainTitle string, IP
 				}
 			}
 
-			mu.Lock()
-			_ = bar.Add(1)
-			mu.Unlock()
+			// Only update progress bar if not cancelled
+			if interruptData == nil || !interruptData.IsCancelled() {
+				mu.Lock()
+				_ = bar.Add(1)
+				mu.Unlock()
+			}
 		}(ip)
 	}
 
