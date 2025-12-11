@@ -86,9 +86,7 @@ ipmap -asn AS13335 -d example.com -proxy http://127.0.0.1:8080 -rate 100 -worker
 This project is open-source and available under the MIT License.
 
 ## Contributors
-
 Thanks go to these wonderful people
-
 <table>
   <tbody>
     <tr>
@@ -111,7 +109,7 @@ Thanks go to these wonderful people
         </a>
       </td>
       <td align="center">
-        <a href="https://github.com/sercanarga">
+        <a href="https://github.com/lordixir">
           <img src="https://avatars.githubusercontent.com/u/38049901?v=4" width="100px;" alt=""/>
           <br />
           <sub>
@@ -122,4 +120,5 @@ Thanks go to these wonderful people
     </tr>
   </tbody>
 </table>
+
 
