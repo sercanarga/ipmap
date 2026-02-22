@@ -82,7 +82,7 @@ func TestAddRealChromeHeaders(t *testing.T) {
 		}
 	}
 
-	// Check Accept-Encoding contains zstd (Chrome 131 specific)
+	// Check Accept-Encoding contains zstd (Chrome 135 specific)
 	acceptEncoding := req.Header.Get("Accept-Encoding")
 	if acceptEncoding != "gzip, deflate, br, zstd" {
 		t.Errorf("Accept-Encoding should include zstd, got: %s", acceptEncoding)

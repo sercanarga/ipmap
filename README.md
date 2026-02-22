@@ -7,7 +7,7 @@ An open-source, cross-platform powerful network analysis tool for discovering we
 - ASN scanning (Autonomous System Number) with IPv4/IPv6 support
 - IP block scanning (CIDR format)
 - HTTPS/HTTP automatic fallback
-- **Chrome 131 TLS Fingerprint** (JA3/JA4 spoofing via uTLS)
+- **Chrome 135 TLS Fingerprint** (JA3/JA4 spoofing via uTLS)
 - **Real Chrome Header Order** (WAF bypass optimized)
 - **Referer Header Rotation** (Google, Bing, DuckDuckGo)
 - Firewall bypass techniques (IP shuffling, header randomization, smart jitter)
@@ -57,6 +57,11 @@ go build -o ipmap .
 -proxy http://127.0.0.1:8080         # Proxy URL (HTTP/HTTPS/SOCKS5)
 -rate 50                             # Rate limit (requests/sec, 0 = unlimited)
 -dns 8.8.8.8,1.1.1.1                 # Custom DNS servers
+-ipv6                                # Enable IPv6 scanning
+-config config.yaml                  # Load config from YAML file
+-resume cache.json                   # Resume interrupted scan from cache
+-output-dir ./exports                # Directory for export files
+-insecure=false                      # Enable TLS certificate verification
 ```
 
 ### Examples
