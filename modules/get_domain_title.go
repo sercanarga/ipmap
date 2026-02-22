@@ -1,9 +1,7 @@
 package modules
 
 import (
-	"html"
 	"ipmap/config"
-	"regexp"
 )
 
 // GetDomainTitle fetches and extracts the title from a domain's HTML page.
@@ -44,14 +42,10 @@ func GetDomainTitle(url string) []string {
 
 	config.VerboseLog("Response received: Status=%s, Time=%sms", getTitle[0], getTitle[3])
 
-	re := regexp.MustCompile(`(?s).*?<title>(.*?)</title>.*`)
-	match := re.FindStringSubmatch(getTitle[2])
-
-	if len(match) > 1 {
-		// Decode HTML entities (e.g., &amp; -> &, &lt; -> <)
-		decodedTitle := html.UnescapeString(match[1])
-		config.VerboseLog("Title found: %s", decodedTitle)
-		return []string{decodedTitle, getTitle[3]}
+	title := ExtractTitle(getTitle[2])
+	if title != "" {
+		config.VerboseLog("Title found: %s", title)
+		return []string{title, getTitle[3]}
 	}
 
 	// If no title found but we got a response, use domain name as title

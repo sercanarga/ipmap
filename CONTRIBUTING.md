@@ -56,21 +56,28 @@ go vet ./...
 
 ```
 ipmap/
-├── main.go              # Entry point, CLI flags
+├── main.go              # Entry point, CLI flags, go:embed VERSION
+├── VERSION              # Embedded version string
 ├── config/
-│   └── config.go        # Global config, RNG, jitter functions
+│   ├── config.go        # Global config, RNG, jitter, logging
+│   └── loader.go        # YAML config file loading
 ├── modules/
-│   ├── scanner.go       # Chrome 131 headers, uTLS transport
-│   ├── request.go       # HTTP client with retry
-│   ├── resolve_site.go  # Worker pool, IP scanning
+│   ├── scanner.go       # Chrome 135 headers, uTLS transport
+│   ├── request.go       # HTTP client with retry, connection pool
+│   ├── resolve_site.go  # Worker pool, IP scanning, batch DNS
 │   ├── get_site.go      # Site discovery per IP
+│   ├── get_domain_title.go # Domain title fetching
+│   ├── helpers.go       # Shared utilities (ExtractTitle)
+│   ├── cache.go         # Scan state persistence for resume
 │   ├── validators.go    # Input validation
 │   ├── rate_limiter.go  # Token bucket rate limiter
-│   └── ...
+│   ├── dns_resolver.go  # Batch reverse DNS lookups
+│   ├── result_print.go  # Result formatting and export
+│   ├── interrupt_handler.go # Ctrl+C handling
+│   └── calc_ip_address.go   # CIDR to IP calculation
 ├── tools/
 │   ├── find_asn.go      # ASN scanning
 │   └── find_ip.go       # IP block scanning
-├── bin/                 # Cross-platform builds
 └── README.md
 ```
 
@@ -113,10 +120,10 @@ When modifying the scanner module:
 
 1. **TLS Fingerprint**: Use `utls.HelloChrome_Auto` for latest Chrome fingerprint
 2. **Header Order**: Maintain exact Chrome header order (not alphabetical)
-3. **Accept-Encoding**: Include `zstd` for Chrome 131+
-4. **Jitter**: Use `config.AddJitter()` (0-200ms) or `config.AddSmartJitter()` (with occasional long pauses)
-5. **User-Agent**: Use Chrome 130+ versions only
-6. **Referer**: Rotate between Google, Bing, DuckDuckGo URLs
+3. **Accept-Encoding**: Include `zstd` for Chrome 135+
+4. **Jitter**: Use `config.AddJitter()` (0-200ms random delay)
+5. **User-Agent**: Use Chrome 133+ versions only
+6. **Referer**: Rotate between Google, Bing, DuckDuckGo, Yahoo URLs
 
 ## License
 

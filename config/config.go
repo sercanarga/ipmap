@@ -42,7 +42,7 @@ var (
 	Format string
 
 	// MaxRetries is the number of retry attempts for failed requests
-	MaxRetries int = 2
+	MaxRetries int = 0
 
 	// Workers is the number of concurrent scanning goroutines
 	Workers int = 100
@@ -55,6 +55,15 @@ var (
 
 	// DNSServers is the list of custom DNS servers
 	DNSServers []string
+
+	// EnableIPv6 enables IPv6 address scanning (default: false)
+	EnableIPv6 bool = false
+
+	// OutputDir is the directory for export files (default: current directory)
+	OutputDir string = ""
+
+	// InsecureSkipVerify skips TLS certificate verification (default: true for backward compatibility)
+	InsecureSkipVerify bool = true
 )
 
 // ====================================================================
@@ -102,19 +111,6 @@ func AddJitter() {
 	if jitterMs > 0 {
 		time.Sleep(time.Duration(jitterMs) * time.Millisecond)
 	}
-}
-
-// AddSmartJitter adds intelligent jitter with occasional long pauses for more natural patterns
-// This helps bypass rate-based WAF detection
-func AddSmartJitter() {
-	base := 50 + GetRandomInt(150) // 50-200ms base
-
-	// 5% chance of a long pause (simulates user reading page)
-	if GetRandomInt(100) < 5 {
-		base += 1000 + GetRandomInt(2000) // +1-3 seconds
-	}
-
-	time.Sleep(time.Duration(base) * time.Millisecond)
 }
 
 // ====================================================================

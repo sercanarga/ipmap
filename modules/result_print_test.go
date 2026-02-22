@@ -12,7 +12,7 @@ func TestResultDataJSON(t *testing.T) {
 		SearchSite: "example.com",
 		Timeout:    300,
 		IPBlocks:   []string{"192.168.1.0/24"},
-		FoundedWebsites: [][]string{
+		FoundWebsites: [][]string{
 			{"200", "192.168.1.1", "Test Site"},
 		},
 		Timestamp: "2025-11-30T00:00:00Z",
@@ -43,8 +43,8 @@ func TestResultDataJSON(t *testing.T) {
 	if len(decoded.IPBlocks) != len(result.IPBlocks) {
 		t.Errorf("IPBlocks length mismatch: got %d, want %d", len(decoded.IPBlocks), len(result.IPBlocks))
 	}
-	if len(decoded.FoundedWebsites) != len(result.FoundedWebsites) {
-		t.Errorf("FoundedWebsites length mismatch: got %d, want %d", len(decoded.FoundedWebsites), len(result.FoundedWebsites))
+	if len(decoded.FoundWebsites) != len(result.FoundWebsites) {
+		t.Errorf("FoundWebsites length mismatch: got %d, want %d", len(decoded.FoundWebsites), len(result.FoundWebsites))
 	}
 }
 
@@ -99,7 +99,7 @@ func BenchmarkResultDataMarshal(b *testing.B) {
 		SearchSite: "example.com",
 		Timeout:    300,
 		IPBlocks:   []string{"192.168.1.0/24", "10.0.0.0/24"},
-		FoundedWebsites: [][]string{
+		FoundWebsites: [][]string{
 			{"200", "192.168.1.1", "Site 1"},
 			{"200", "192.168.1.2", "Site 2"},
 		},

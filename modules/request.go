@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// HTTP client with lazy initialization
 var (
+	// HTTP client with lazy initialization
 	httpClient     *http.Client
 	httpClientOnce sync.Once
 	lastProxyURL   string
@@ -54,16 +54,58 @@ func GetHTTPClient() *http.Client {
 		httpClient = createHTTPClientWithConfig()
 		lastProxyURL = config.ProxyURL
 		lastDNSServers = strings.Join(config.DNSServers, ",")
+
+		// Pre-warm connection pool if proxy is configured
+		if config.ProxyURL != "" {
+			go preWarmConnectionPool(httpClient, config.ProxyURL)
+		}
 	})
 
 	return httpClient
 }
 
-// createCustomDialer creates a dialer with optional custom DNS servers
+// preWarmConnectionPool establishes initial connections to the proxy
+// This reduces latency for the first requests
+func preWarmConnectionPool(client *http.Client, proxyURL string) {
+	if client == nil || proxyURL == "" {
+		return
+	}
+
+	config.VerboseLog("Pre-warming connection pool for proxy: %s", proxyURL)
+
+	// Parse proxy to get host
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return
+	}
+
+	// Establish a few initial connections
+	for i := 0; i < 3; i++ {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Simple HEAD request to establish connection
+			req, err := http.NewRequestWithContext(ctx, "HEAD", "https://"+parsed.Host, nil)
+			if err != nil {
+				return
+			}
+
+			resp, err := client.Do(req)
+			if err == nil && resp != nil {
+				resp.Body.Close()
+			}
+		}()
+	}
+}
+
+// createCustomDialer creates a dialer with optimal connection settings
 func createCustomDialer() *net.Dialer {
 	dialer := &net.Dialer{
 		Timeout:   time.Duration(config.DialTimeout) * time.Second,
 		KeepAlive: 30 * time.Second,
+		// DualStack enables both IPv4 and IPv6
+		DualStack: config.EnableIPv6,
 	}
 	return dialer
 }
@@ -127,29 +169,102 @@ func createDialContext() func(ctx context.Context, network, addr string) (net.Co
 }
 
 func createHTTPClientWithConfig() *http.Client {
-	// Use the standard fallback client for reliability
-	// The uTLS transport has HTTP/2 compatibility issues that cause
-	// "malformed HTTP response" errors when servers respond with HTTP/2
-	// Chrome headers are still added in RequestFuncWithRetry for anti-detection
-	return createFallbackHTTPClient()
+	// Try to create uTLS client for Chrome 135 TLS fingerprint
+	utlsTransport, err := NewUTLSTransport(config.ProxyURL, time.Duration(config.DialTimeout)*time.Second)
+	if err != nil {
+		config.VerboseLog("Failed to create uTLS transport: %v, using fallback", err)
+		return createFallbackHTTPClient()
+	}
+
+	// Calculate optimized connection pool size based on worker count
+	// More aggressive pooling for better performance
+	maxConns := config.Workers * 2
+	if maxConns < 200 {
+		maxConns = 200
+	}
+	if maxConns > 1000 {
+		maxConns = 1000
+	}
+
+	// Per-host connections (important for proxy mode)
+	maxConnsPerHost := config.Workers
+	if maxConnsPerHost < 50 {
+		maxConnsPerHost = 50
+	}
+	if maxConnsPerHost > 200 {
+		maxConnsPerHost = 200
+	}
+
+	// Create transport with uTLS dial function and optimized pooling
+	transport := &http.Transport{
+		DialTLSContext: utlsTransport.DialTLSContext,
+		DialContext:    createDialContext(),
+		// Connection Pool Settings
+		MaxIdleConns:        maxConns,
+		MaxIdleConnsPerHost: maxConnsPerHost,
+		MaxConnsPerHost:     maxConnsPerHost * 2,
+		// Longer idle timeout for better reuse
+		IdleConnTimeout: 90 * time.Second,
+		// Timeouts
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		// HTTP/2 disabled for uTLS compatibility
+		ForceAttemptHTTP2: false,
+		// Keep connections alive for reuse
+		DisableKeepAlives: false,
+		// Enable compression for better performance
+		DisableCompression: false,
+		// Write buffer for better throughput
+		WriteBufferSize: 64 * 1024, // 64KB
+		ReadBufferSize:  64 * 1024, // 64KB
+	}
+
+	config.VerboseLog("Connection pool: MaxIdle=%d, MaxPerHost=%d, IdleTimeout=90s", maxConns, maxConnsPerHost)
+	config.VerboseLog("Using uTLS transport with Chrome 135 TLS fingerprint")
+
+	return &http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return http.ErrUseLastResponse
+			}
+			// Preserve headers on redirect
+			for key, val := range via[0].Header {
+				if _, ok := req.Header[key]; !ok {
+					req.Header[key] = val
+				}
+			}
+			return nil
+		},
+	}
 }
 
 // createFallbackHTTPClient creates a standard HTTP client as fallback
 func createFallbackHTTPClient() *http.Client {
-	// Calculate connection pool size based on worker count
-	maxConns := config.Workers
-	if maxConns < 100 {
-		maxConns = 100
+	// Calculate optimized connection pool size (same as main client)
+	maxConns := config.Workers * 2
+	if maxConns < 200 {
+		maxConns = 200
 	}
-	maxConnsPerHost := maxConns / 10
-	if maxConnsPerHost < 10 {
-		maxConnsPerHost = 10
+	if maxConns > 1000 {
+		maxConns = 1000
+	}
+
+	maxConnsPerHost := config.Workers
+	if maxConnsPerHost < 50 {
+		maxConnsPerHost = 50
+	}
+	if maxConnsPerHost > 200 {
+		maxConnsPerHost = 200
 	}
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: config.InsecureSkipVerify,
 			MinVersion:         tls.VersionTLS12,
+			// TLS Session Cache for connection reuse
+			ClientSessionCache: tls.NewLRUClientSessionCache(256),
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
@@ -159,16 +274,22 @@ func createFallbackHTTPClient() *http.Client {
 				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
 			},
 		},
-		MaxIdleConns:          maxConns,
-		MaxIdleConnsPerHost:   maxConnsPerHost,
-		MaxConnsPerHost:       maxConnsPerHost * 2,
-		IdleConnTimeout:       60 * time.Second,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
+		// Connection Pool Settings
+		MaxIdleConns:        maxConns,
+		MaxIdleConnsPerHost: maxConnsPerHost,
+		MaxConnsPerHost:     maxConnsPerHost * 2,
+		// Longer idle timeout for better reuse
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext:           createDialContext(),
 		ForceAttemptHTTP2:     true,
 		DisableKeepAlives:     false,
+		DisableCompression:    false,
+		// Buffer sizes for better throughput
+		WriteBufferSize: 64 * 1024,
+		ReadBufferSize:  64 * 1024,
 	}
 
 	// Configure proxy if specified
@@ -181,6 +302,8 @@ func createFallbackHTTPClient() *http.Client {
 			config.VerboseLog("Using proxy: %s", config.ProxyURL)
 		}
 	}
+
+	config.VerboseLog("Fallback client - Connection pool: MaxIdle=%d, MaxPerHost=%d", maxConns, maxConnsPerHost)
 
 	return &http.Client{
 		Transport: transport,
@@ -229,7 +352,7 @@ func RequestFuncWithRetry(ip string, url string, timeout int, maxRetries int) []
 			req.Host = url
 		}
 
-		// Use Chrome 131 headers from scanner.go for better anti-detection
+		// Use Chrome 135 headers from scanner.go for better anti-detection
 		profile := NewRandomChromeProfile()
 		AddRealChromeHeaders(req, profile)
 

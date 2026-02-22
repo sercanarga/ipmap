@@ -1,7 +1,7 @@
 # ipmap Multi-Platform Build Script
 # Builds for macOS (ARM64 + AMD64) and Linux (AMD64)
 
-$VERSION = "2.2.1"
+$VERSION = "2.2.2"
 $APP_NAME = "ipmap"
 $BUILD_DIR = "bin"
 
@@ -48,6 +48,19 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "SUCCESS: Linux AMD64 build completed" -ForegroundColor Green
 } else {
     Write-Host "ERROR: Linux AMD64 build failed" -ForegroundColor Red
+    exit 1
+}
+Write-Host ""
+
+# Build for Windows AMD64
+Write-Host "Building for Windows AMD64..." -ForegroundColor Yellow
+$env:GOOS = "windows"
+$env:GOARCH = "amd64"
+go build -o "$BUILD_DIR/${APP_NAME}_windows_amd64.exe" .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "SUCCESS: Windows AMD64 build completed" -ForegroundColor Green
+} else {
+    Write-Host "ERROR: Windows AMD64 build failed" -ForegroundColor Red
     exit 1
 }
 Write-Host ""

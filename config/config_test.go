@@ -98,8 +98,8 @@ func TestInfoLog(t *testing.T) {
 }
 
 func TestConfigDefaults(t *testing.T) {
-	if MaxRetries != 2 {
-		t.Errorf("MaxRetries default should be 2, got %d", MaxRetries)
+	if MaxRetries != 0 {
+		t.Errorf("MaxRetries default should be 0 (retries disabled), got %d", MaxRetries)
 	}
 	if Workers != 100 {
 		t.Errorf("Workers default should be 100, got %d", Workers)

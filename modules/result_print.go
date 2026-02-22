@@ -5,18 +5,51 @@ import (
 	"fmt"
 	"ipmap/config"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type ResultData struct {
-	Method          string     `json:"method"`
-	SearchSite      string     `json:"search_site,omitempty"`
-	Timeout         int        `json:"timeout_ms"`
-	IPBlocks        []string   `json:"ip_blocks"`
-	FoundedWebsites [][]string `json:"founded_websites"`
-	Timestamp       string     `json:"timestamp"`
+	Method        string     `json:"method"`
+	SearchSite    string     `json:"search_site,omitempty"`
+	Timeout       int        `json:"timeout_ms"`
+	IPBlocks      []string   `json:"ip_blocks"`
+	FoundWebsites [][]string `json:"found_websites"`
+	Timestamp     string     `json:"timestamp"`
+}
+
+// MarshalJSON outputs both "found_websites" and "founded_websites" for backward compatibility
+func (r ResultData) MarshalJSON() ([]byte, error) {
+	type Alias ResultData
+	return json.Marshal(&struct {
+		Alias
+		FoundedWebsites [][]string `json:"founded_websites"` // deprecated: backward compat
+	}{
+		Alias:           (Alias)(r),
+		FoundedWebsites: r.FoundWebsites,
+	})
+}
+
+// UnmarshalJSON accepts both "found_websites" and legacy "founded_websites"
+func (r *ResultData) UnmarshalJSON(data []byte) error {
+	type Alias ResultData
+	aux := &struct {
+		*Alias
+		FoundedWebsites [][]string `json:"founded_websites"`
+	}{Alias: (*Alias)(r)}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// If new field is empty but old field has data, use it
+	if len(r.FoundWebsites) == 0 && len(aux.FoundedWebsites) > 0 {
+		r.FoundWebsites = aux.FoundedWebsites
+	}
+
+	return nil
 }
 
 // ExportInterruptedResults exports results from an interrupted scan without prompting
@@ -26,12 +59,12 @@ func ExportInterruptedResults(websites [][]string, domain string, timeout int, i
 
 	if isJSON {
 		result := ResultData{
-			Method:          "Search Interrupted",
-			SearchSite:      domain,
-			Timeout:         timeout,
-			IPBlocks:        ipBlocks,
-			FoundedWebsites: websites,
-			Timestamp:       time.Now().Format(time.RFC3339),
+			Method:        "Search Interrupted",
+			SearchSite:    domain,
+			Timeout:       timeout,
+			IPBlocks:      ipBlocks,
+			FoundWebsites: websites,
+			Timestamp:     time.Now().Format(time.RFC3339),
 		}
 
 		jsonData, err := json.MarshalIndent(result, "", "  ")
@@ -48,7 +81,7 @@ func ExportInterruptedResults(websites [][]string, domain string, timeout int, i
 		}
 		resultString += "\nTimeout:       " + strconv.Itoa(timeout) + "ms"
 		resultString += "\nIP Blocks:     " + strings.Join(ipBlocks, ",")
-		resultString += "\nFounded Websites:\n"
+		resultString += "\nFound Websites:\n"
 
 		if len(websites) > 0 {
 			for _, site := range websites {
@@ -87,6 +120,17 @@ func exportFile(result string, isJSON bool, domain string) {
 	} else {
 		fileName = "ipmap_" + strconv.FormatInt(time.Now().Local().Unix(), 10) + "_export" + ext
 	}
+
+	// Use output directory if specified
+	if config.OutputDir != "" {
+		// Create directory if it doesn't exist
+		if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
+			config.ErrorLog("Failed to create output directory: %v", err)
+			return
+		}
+		fileName = filepath.Join(config.OutputDir, fileName)
+	}
+
 	f, err := os.Create(fileName)
 	if err != nil {
 		config.ErrorLog("Export file creation error: %v", err)
@@ -112,12 +156,12 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 	if isJSON {
 		// Create JSON result
 		result := ResultData{
-			Method:          method,
-			SearchSite:      title,
-			Timeout:         timeout,
-			IPBlocks:        ipblocks,
-			FoundedWebsites: founded,
-			Timestamp:       time.Now().Format(time.RFC3339),
+			Method:        method,
+			SearchSite:    title,
+			Timeout:       timeout,
+			IPBlocks:      ipblocks,
+			FoundWebsites: founded,
+			Timestamp:     time.Now().Format(time.RFC3339),
 		}
 
 		jsonData, err := json.MarshalIndent(result, "", "  ")
@@ -138,7 +182,7 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 				exportFile(string(jsonData), true, title)
 			}
 		}
-		fmt.Println("\n[✓] Scan completed")
+		fmt.Println("\n[+] Scan completed")
 	} else {
 		// Text format (original)
 		resultString := "==================== RESULT ===================="
@@ -151,7 +195,7 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 		resultString += "\nTimeout:       " + strconv.Itoa(timeout) + "ms"
 		resultString += "\nIP Blocks:     " + strings.Join(ipblocks, ",")
 
-		resultString += "\nFounded Websites:\n"
+		resultString += "\nFound Websites:\n"
 		if len(founded) > 0 {
 			for _, site := range founded {
 				// Format: Status, IP, Title[, Hostname]
@@ -179,6 +223,6 @@ func PrintResult(method string, title string, timeout int, ipblocks []string, fo
 				exportFile(resultString, false, title)
 			}
 		}
-		fmt.Println("\n[✓] Scan completed")
+		fmt.Println("\n[+] Scan completed")
 	}
 }
