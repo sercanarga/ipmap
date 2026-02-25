@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.1] - 2026-02-25
+
+### Fixed
+- **Data Race**: `Cache.Save()` used `RLock` for write operation → fixed to `Lock`
+- **Thread Safety**: Interrupt handler accessed `Websites` field directly → now uses `GetWebsites()`
+- **Case Sensitivity**: Domain title comparison now uses `strings.EqualFold` for case-insensitive matching
+- **Duplicate Save**: `MarkCompleted()+Save()` was called twice → reduced to single call in `printOnce.Do`
+- **Unused Variable**: `GenerateCacheFileName` computed `timestamp` even when unused
+
+### Improved
+- **Code Deduplication**: `ResolveSite` + `ResolveSiteWithCache` refactored into shared `runScan()` (448→306 lines)
+- **Concurrency**: `InterruptData` upgraded from `sync.Mutex` to `sync.RWMutex` with `RLock` for reads
+- **Cache Progress**: `GetProgress()` now returns estimated total IP count instead of 0
+- **Dead Code**: Removed unused `Websites` parameter from `ResolveSite`/`ResolveSiteWithCache` and callers
+
+---
+
 ## [2.4.0] - 2026-02-22
 
 ### Added
