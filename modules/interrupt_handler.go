@@ -10,7 +10,7 @@ type InterruptData struct {
 	Timeout   int
 	Cancelled bool          // Flag to indicate cancellation
 	CancelCh  chan struct{} // Channel to signal cancellation
-	mu        sync.Mutex
+	mu        sync.RWMutex
 }
 
 // NewInterruptData creates a new InterruptData with initialized cancel channel
@@ -38,8 +38,8 @@ func (id *InterruptData) IsCancelled() bool {
 	if id == nil {
 		return false
 	}
-	id.mu.Lock()
-	defer id.mu.Unlock()
+	id.mu.RLock()
+	defer id.mu.RUnlock()
 	return id.Cancelled
 }
 
@@ -58,7 +58,7 @@ func (id *InterruptData) GetWebsites() [][]string {
 	if id == nil {
 		return nil
 	}
-	id.mu.Lock()
-	defer id.mu.Unlock()
+	id.mu.RLock()
+	defer id.mu.RUnlock()
 	return id.Websites
 }

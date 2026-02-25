@@ -13,10 +13,9 @@ func FindASN(asn string, domain string, domainTitle string, con bool, export boo
 	// Use local variables instead of global to avoid race conditions
 	var ipBlocks []string
 	var ipAddress []string
-	var websites [][]string
 
 	// Match both IPv4 (route:) and IPv6 (route6:) blocks
-	re := regexp.MustCompile(`(?m)route6?:\s+([0-9a-fA-F:\.\/]+)$`)
+	re := regexp.MustCompile(`(?m)route6?:\s+([0-9a-fA-F:\./]+)$`)
 	for _, match := range re.FindAllStringSubmatch(modules.FindIPBlocks(asn), -1) {
 		ipBlocks = append(ipBlocks, match[1])
 	}
@@ -63,5 +62,5 @@ func FindASN(asn string, domain string, domainTitle string, con bool, export boo
 		"\nStart Time:  " + time.Now().Local().Format("2006-01-02 15:04:05") +
 		"\nEst. End:    " + time.Now().Add(time.Duration(estimatedSeconds)*time.Second).Local().Format("2006-01-02 15:04:05"))
 
-	modules.ResolveSite(ipAddress, websites, domainTitle, ipBlocks, domain, con, export, timeout, interruptData)
+	modules.ResolveSite(ipAddress, domainTitle, ipBlocks, domain, con, export, timeout, interruptData)
 }
