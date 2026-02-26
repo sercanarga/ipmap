@@ -11,7 +11,6 @@ import (
 func FindIP(ipBlocks []string, domain string, domainTitle string, con bool, export bool, timeout int, interruptData *modules.InterruptData) {
 	// Use local variables instead of global to avoid race conditions
 	var ipAddress []string
-	var websites [][]string
 
 	for _, block := range ipBlocks {
 		ips, err := modules.CalcIPAddress(block)
@@ -44,13 +43,12 @@ func FindIP(ipBlocks []string, domain string, domainTitle string, con bool, expo
 		"\nStart Time:  " + time.Now().Local().Format("2006-01-02 15:04:05") +
 		"\nEst. End:    " + time.Now().Add(time.Duration(estimatedSeconds)*time.Second).Local().Format("2006-01-02 15:04:05"))
 
-	modules.ResolveSite(ipAddress, websites, domainTitle, ipBlocks, domain, con, export, timeout, interruptData)
+	modules.ResolveSite(ipAddress, domainTitle, ipBlocks, domain, con, export, timeout, interruptData)
 }
 
 // FindIPWithCache resumes a scan from cache, filtering out already-scanned IPs
 func FindIPWithCache(ipBlocks []string, domain string, domainTitle string, con bool, export bool, timeout int, interruptData *modules.InterruptData, cache *modules.Cache) {
 	var ipAddress []string
-	var websites [][]string
 
 	for _, block := range ipBlocks {
 		ips, err := modules.CalcIPAddress(block)
@@ -96,5 +94,5 @@ func FindIPWithCache(ipBlocks []string, domain string, domainTitle string, con b
 		"\nWorkers:     " + strconv.Itoa(workerCount) +
 		"\nEst. End:    " + time.Now().Add(time.Duration(estimatedSeconds)*time.Second).Local().Format("2006-01-02 15:04:05"))
 
-	modules.ResolveSiteWithCache(unscannedIPs, websites, domainTitle, ipBlocks, domain, con, export, timeout, interruptData, cache)
+	modules.ResolveSiteWithCache(unscannedIPs, domainTitle, ipBlocks, domain, con, export, timeout, interruptData, cache)
 }

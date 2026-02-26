@@ -70,8 +70,8 @@ func LoadCache(filePath string) (*Cache, error) {
 
 // Save persists cache to file
 func (c *Cache) Save() error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.Data.LastUpdate = time.Now().Format(time.RFC3339)
 
@@ -152,17 +152,25 @@ func (c *Cache) GetResults() [][]string {
 func (c *Cache) GetProgress() (scanned int, total int, results int) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return len(c.Data.ScannedIPs), 0, len(c.Data.Results)
+	totalIPs := len(c.Data.ScannedIPs)
+	// Use IP blocks to estimate total if available
+	if len(c.Data.IPBlocks) > 0 {
+		totalIPs = 0
+		for range c.Data.IPBlocks {
+			// Approximate: each block contributes IPs (exact count requires CIDR parsing)
+			totalIPs += 256 // rough estimate per block
+		}
+	}
+	return len(c.Data.ScannedIPs), totalIPs, len(c.Data.Results)
 }
 
 // GenerateCacheFileName generates a cache file name based on scan parameters
 func GenerateCacheFileName(asn, domain string) string {
-	timestamp := time.Now().Unix()
 	if asn != "" {
 		return "ipmap_" + asn + "_cache.json"
 	}
 	if domain != "" {
 		return "ipmap_" + SanitizeFilename(domain) + "_cache.json"
 	}
-	return "ipmap_" + strconv.FormatInt(timestamp, 10) + "_cache.json"
+	return "ipmap_" + strconv.FormatInt(time.Now().Unix(), 10) + "_cache.json"
 }

@@ -250,15 +250,17 @@ func setupInterruptHandler() {
 		// Give goroutines a moment to stop
 		time.Sleep(100 * time.Millisecond)
 
-		if interruptData != nil && len(interruptData.Websites) > 0 {
-			fmt.Printf("\n[*] Found %d websites before interruption\n", len(interruptData.Websites))
+		// Use thread-safe getter to avoid race with worker goroutines
+		websites := interruptData.GetWebsites()
+		if interruptData != nil && len(websites) > 0 {
+			fmt.Printf("\n[*] Found %d websites before interruption\n", len(websites))
 			fmt.Print("\nDo you want to export the results? (Y/n): ")
 
 			var response string
 			_, _ = fmt.Scanln(&response)
 
 			if response == "y" || response == "Y" || response == "" {
-				modules.ExportInterruptedResults(interruptData.Websites, interruptData.Domain,
+				modules.ExportInterruptedResults(websites, interruptData.Domain,
 					interruptData.Timeout, interruptData.IPBlocks)
 				fmt.Println("\n[+] Results exported successfully")
 			} else {
