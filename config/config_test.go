@@ -219,7 +219,7 @@ func TestLoadConfigFileInvalid(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name())
 
-	tmpFile.WriteString("invalid: yaml: content: [[[")
+	_, _ = tmpFile.WriteString("invalid: yaml: content: [[[")
 	tmpFile.Close()
 
 	_, err = LoadConfigFile(tmpFile.Name())
@@ -302,17 +302,21 @@ func TestFindConfigFile(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Change to temp dir (no config files)
-	os.Chdir(tmpDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
 	result := FindConfigFile()
 	if result != "" {
 		t.Errorf("FindConfigFile should return empty when no config exists, got: %s", result)
 	}
 
 	// Create config.yaml
-	os.WriteFile("config.yaml", []byte("workers: 50\n"), 0644)
+	if err := os.WriteFile("config.yaml", []byte("workers: 50\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config.yaml: %v", err)
+	}
 	result = FindConfigFile()
 	if result != "config.yaml" {
 		t.Errorf("FindConfigFile should find config.yaml, got: %s", result)
