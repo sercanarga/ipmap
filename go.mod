@@ -3,7 +3,7 @@ module ipmap
 go 1.24.0
 
 require (
-	github.com/refraction-networking/utls v1.8.1
+	github.com/refraction-networking/utls v1.8.2
 	github.com/schollz/progressbar/v3 v3.14.1
 	golang.org/x/net v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
