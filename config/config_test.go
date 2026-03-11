@@ -130,3 +130,191 @@ func TestWorkerConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestWarnLog(t *testing.T) {
+	// Capture stdout
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	WarnLog("Warning: %s %d", "test", 42)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	if !strings.Contains(output, "[WARN]") {
+		t.Error("WarnLog should print [WARN] prefix")
+	}
+	if !strings.Contains(output, "Warning: test 42") {
+		t.Error("WarnLog should print formatted message")
+	}
+}
+
+func TestLoadConfigFile(t *testing.T) {
+	// Create temp YAML config
+	tmpFile, err := os.CreateTemp("", "ipmap_config_*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	yamlContent := `workers: 200
+rate_limit: 50
+proxy: "http://127.0.0.1:8080"
+dns_servers:
+  - "8.8.8.8"
+  - "1.1.1.1"
+ipv6: true
+verbose: true
+format: "json"
+`
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	tmpFile.Close()
+
+	cfg, err := LoadConfigFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("LoadConfigFile failed: %v", err)
+	}
+
+	if cfg.Workers != 200 {
+		t.Errorf("Workers = %d, want 200", cfg.Workers)
+	}
+	if cfg.RateLimit != 50 {
+		t.Errorf("RateLimit = %d, want 50", cfg.RateLimit)
+	}
+	if cfg.Proxy != "http://127.0.0.1:8080" {
+		t.Errorf("Proxy = %s, want http://127.0.0.1:8080", cfg.Proxy)
+	}
+	if len(cfg.DNSServers) != 2 {
+		t.Errorf("DNSServers count = %d, want 2", len(cfg.DNSServers))
+	}
+	if !cfg.IPv6 {
+		t.Error("IPv6 should be true")
+	}
+	if !cfg.Verbose {
+		t.Error("Verbose should be true")
+	}
+	if cfg.Format != "json" {
+		t.Errorf("Format = %s, want json", cfg.Format)
+	}
+}
+
+func TestLoadConfigFileInvalid(t *testing.T) {
+	// Non-existent file
+	_, err := LoadConfigFile("/nonexistent/path/config.yaml")
+	if err == nil {
+		t.Error("LoadConfigFile should fail for non-existent file")
+	}
+
+	// Invalid YAML
+	tmpFile, err := os.CreateTemp("", "ipmap_bad_*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	tmpFile.WriteString("invalid: yaml: content: [[[")
+	tmpFile.Close()
+
+	_, err = LoadConfigFile(tmpFile.Name())
+	if err == nil {
+		t.Error("LoadConfigFile should fail for invalid YAML")
+	}
+}
+
+func TestApplyFileConfig(t *testing.T) {
+	// Save originals
+	origWorkers := Workers
+	origRate := RateLimit
+	origProxy := ProxyURL
+	origDNS := DNSServers
+	origIPv6 := EnableIPv6
+	origVerbose := Verbose
+	origFormat := Format
+	defer func() {
+		Workers = origWorkers
+		RateLimit = origRate
+		ProxyURL = origProxy
+		DNSServers = origDNS
+		EnableIPv6 = origIPv6
+		Verbose = origVerbose
+		Format = origFormat
+	}()
+
+	// Test nil config (should not panic)
+	ApplyFileConfig(nil)
+
+	// Test partial config (only workers)
+	Workers = 100
+	RateLimit = 0
+	ApplyFileConfig(&FileConfig{Workers: 500})
+	if Workers != 500 {
+		t.Errorf("Workers = %d, want 500", Workers)
+	}
+	if RateLimit != 0 {
+		t.Error("RateLimit should not change with zero value in config")
+	}
+
+	// Test full config
+	ApplyFileConfig(&FileConfig{
+		Workers:    300,
+		RateLimit:  25,
+		Proxy:      "socks5://localhost:1080",
+		DNSServers: []string{"9.9.9.9"},
+		IPv6:       true,
+		Verbose:    true,
+		Format:     "json",
+	})
+	if Workers != 300 {
+		t.Errorf("Workers = %d, want 300", Workers)
+	}
+	if RateLimit != 25 {
+		t.Errorf("RateLimit = %d, want 25", RateLimit)
+	}
+	if ProxyURL != "socks5://localhost:1080" {
+		t.Errorf("ProxyURL = %s, want socks5://localhost:1080", ProxyURL)
+	}
+	if len(DNSServers) != 1 || DNSServers[0] != "9.9.9.9" {
+		t.Errorf("DNSServers = %v, want [9.9.9.9]", DNSServers)
+	}
+	if !EnableIPv6 {
+		t.Error("EnableIPv6 should be true")
+	}
+	if !Verbose {
+		t.Error("Verbose should be true")
+	}
+	if Format != "json" {
+		t.Errorf("Format = %s, want json", Format)
+	}
+}
+
+func TestFindConfigFile(t *testing.T) {
+	// Save current directory
+	origDir, _ := os.Getwd()
+	tmpDir, err := os.MkdirTemp("", "ipmap_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	defer os.Chdir(origDir)
+
+	// Change to temp dir (no config files)
+	os.Chdir(tmpDir)
+	result := FindConfigFile()
+	if result != "" {
+		t.Errorf("FindConfigFile should return empty when no config exists, got: %s", result)
+	}
+
+	// Create config.yaml
+	os.WriteFile("config.yaml", []byte("workers: 50\n"), 0644)
+	result = FindConfigFile()
+	if result != "config.yaml" {
+		t.Errorf("FindConfigFile should find config.yaml, got: %s", result)
+	}
+}

@@ -164,6 +164,94 @@ func TestCacheOperations(t *testing.T) {
 	}
 }
 
+// TestGetProgress tests accurate CIDR-based progress calculation
+func TestGetProgress(t *testing.T) {
+	tests := []struct {
+		name          string
+		ipBlocks      []string
+		scannedIPs    []string
+		results       [][]string
+		wantScanned   int
+		wantTotal     int
+		wantResults   int
+	}{
+		{
+			name:        "/24 block has 254 usable IPs",
+			ipBlocks:    []string{"1.0.0.0/24"},
+			scannedIPs:  []string{"1.0.0.1", "1.0.0.2"},
+			results:     [][]string{{"200", "https://1.0.0.1", "Test"}},
+			wantScanned: 2,
+			wantTotal:   254,
+			wantResults: 1,
+		},
+		{
+			name:        "/30 block has 2 usable IPs",
+			ipBlocks:    []string{"10.0.0.0/30"},
+			scannedIPs:  []string{"10.0.0.1"},
+			results:     nil,
+			wantScanned: 1,
+			wantTotal:   2,
+			wantResults: 0,
+		},
+		{
+			name:        "Multiple blocks sum correctly",
+			ipBlocks:    []string{"1.0.0.0/24", "2.0.0.0/24"},
+			scannedIPs:  []string{"1.0.0.1"},
+			results:     nil,
+			wantScanned: 1,
+			wantTotal:   508, // 254 + 254
+			wantResults: 0,
+		},
+		{
+			name:        "Invalid block falls back to 256 estimate",
+			ipBlocks:    []string{"invalid-cidr"},
+			scannedIPs:  nil,
+			results:     nil,
+			wantScanned: 0,
+			wantTotal:   256,
+			wantResults: 0,
+		},
+		{
+			name:        "No blocks returns scanned count as total",
+			ipBlocks:    nil,
+			scannedIPs:  []string{"1.0.0.1", "1.0.0.2", "1.0.0.3"},
+			results:     nil,
+			wantScanned: 3,
+			wantTotal:   3,
+			wantResults: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpFile := "test_progress_" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".json"
+			defer os.Remove(tmpFile)
+
+			cache := NewCache(tmpFile)
+			if tt.ipBlocks != nil {
+				cache.SetMetadata("", "", "", 2000, tt.ipBlocks)
+			}
+			for _, ip := range tt.scannedIPs {
+				cache.AddScannedIP(ip)
+			}
+			for _, r := range tt.results {
+				cache.AddResult(r)
+			}
+
+			scanned, total, results := cache.GetProgress()
+			if scanned != tt.wantScanned {
+				t.Errorf("scanned = %d, want %d", scanned, tt.wantScanned)
+			}
+			if total != tt.wantTotal {
+				t.Errorf("total = %d, want %d", total, tt.wantTotal)
+			}
+			if results != tt.wantResults {
+				t.Errorf("results = %d, want %d", results, tt.wantResults)
+			}
+		})
+	}
+}
+
 // TestExtractTitle tests HTML title extraction
 func TestExtractTitle(t *testing.T) {
 	tests := []struct {

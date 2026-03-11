@@ -152,3 +152,54 @@ func TestValidateWorkerCount(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateIPList(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"Single valid IP", "192.168.1.1", true},
+		{"Single valid CIDR", "192.168.1.0/24", true},
+		{"Multiple valid CIDRs", "192.168.1.0/24,10.0.0.0/16", true},
+		{"With spaces", "192.168.1.0/24, 10.0.0.0/16", true},
+		{"Empty string", "", false},
+		{"Invalid IP", "999.999.999.999", false},
+		{"Mixed valid and invalid", "192.168.1.0/24,invalid", false},
+		{"Only commas", ",,,", true}, // empty segments are skipped, but at least 1 block exists
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ValidateIPList(tt.input)
+			if got != tt.want {
+				t.Errorf("ValidateIPList(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateTimeout(t *testing.T) {
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{"Normal value", 2000, 2000},
+		{"Below minimum", 10, 100},
+		{"Zero (below min)", 0, 100},
+		{"Above maximum", 99999, 60000},
+		{"At minimum", 100, 100},
+		{"At maximum", 60000, 60000},
+		{"Negative", -100, 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ValidateTimeout(tt.input)
+			if got != tt.want {
+				t.Errorf("ValidateTimeout(%d) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}

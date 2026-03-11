@@ -117,3 +117,81 @@ func TestInterruptDataThreadSafety(t *testing.T) {
 		t.Errorf("Expected 50 websites, got %d", len(websites))
 	}
 }
+
+func TestNewInterruptData(t *testing.T) {
+	id := NewInterruptData()
+
+	if id == nil {
+		t.Fatal("NewInterruptData returned nil")
+	}
+
+	// CancelCh should be initialized (non-nil)
+	if id.CancelCh == nil {
+		t.Error("CancelCh should be initialized")
+	}
+
+	// Should not be cancelled initially
+	if id.IsCancelled() {
+		t.Error("Should not be cancelled initially")
+	}
+
+	// Websites should be nil/empty
+	websites := id.GetWebsites()
+	if len(websites) != 0 {
+		t.Errorf("Websites should be empty, got %d", len(websites))
+	}
+
+	// Fields should be zero-valued
+	if id.Domain != "" {
+		t.Errorf("Domain should be empty, got %s", id.Domain)
+	}
+	if id.Timeout != 0 {
+		t.Errorf("Timeout should be 0, got %d", id.Timeout)
+	}
+	if len(id.IPBlocks) != 0 {
+		t.Errorf("IPBlocks should be empty, got %d", len(id.IPBlocks))
+	}
+}
+
+func TestCancelAndIsCancelled(t *testing.T) {
+	id := NewInterruptData()
+
+	// Before cancel
+	if id.IsCancelled() {
+		t.Error("Should not be cancelled before Cancel()")
+	}
+
+	// Cancel
+	id.Cancel()
+
+	// After cancel
+	if !id.IsCancelled() {
+		t.Error("Should be cancelled after Cancel()")
+	}
+
+	// CancelCh should be closed (non-blocking receive)
+	select {
+	case <-id.CancelCh:
+		// OK — channel is closed
+	default:
+		t.Error("CancelCh should be closed after Cancel()")
+	}
+}
+
+func TestDoubleCancelSafety(t *testing.T) {
+	id := NewInterruptData()
+
+	// First cancel should work
+	id.Cancel()
+	if !id.IsCancelled() {
+		t.Error("Should be cancelled after first Cancel()")
+	}
+
+	// Second cancel should NOT panic (double close protection)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Double Cancel() should not panic, got: %v", r)
+		}
+	}()
+	id.Cancel()
+}

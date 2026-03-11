@@ -88,6 +88,37 @@ func TestWorkerPoolValidation(t *testing.T) {
 	}
 }
 
+func TestShuffleIPs(t *testing.T) {
+	original := []string{"1.0.0.1", "1.0.0.2", "1.0.0.3", "1.0.0.4", "1.0.0.5"}
+	originalCopy := make([]string, len(original))
+	copy(originalCopy, original)
+
+	shuffled := ShuffleIPs(original)
+
+	// Length should be the same
+	if len(shuffled) != len(original) {
+		t.Errorf("Shuffled length %d != original length %d", len(shuffled), len(original))
+	}
+
+	// All elements should be present
+	seen := make(map[string]bool)
+	for _, ip := range shuffled {
+		seen[ip] = true
+	}
+	for _, ip := range original {
+		if !seen[ip] {
+			t.Errorf("Element %s missing from shuffled result", ip)
+		}
+	}
+
+	// Original slice should NOT be modified
+	for i, ip := range original {
+		if ip != originalCopy[i] {
+			t.Errorf("Original slice was modified at index %d: got %s, want %s", i, ip, originalCopy[i])
+		}
+	}
+}
+
 func BenchmarkResolveSiteWorkerPool(b *testing.B) {
 	// Save original config
 	originalWorkers := config.Workers

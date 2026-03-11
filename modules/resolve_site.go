@@ -130,17 +130,23 @@ func runScan(cfg *scanConfig) {
 			mu.Lock()
 			scannedCount++
 
-			// Save to cache periodically
+			// Track cache progress
+			var needsSave bool
 			if cfg.cache != nil {
 				cfg.cache.AddScannedIP(ip)
 				saveCounter++
 				// Save cache every 50 IPs
 				if saveCounter >= 50 {
-					_ = cfg.cache.Save()
+					needsSave = true
 					saveCounter = 0
 				}
 			}
 			mu.Unlock()
+
+			// Save cache outside lock to avoid blocking other goroutines during disk I/O
+			if needsSave {
+				_ = cfg.cache.Save()
+			}
 
 			if len(site) > 0 {
 				// Check if cancelled before printing to avoid mixed output
@@ -188,10 +194,9 @@ func runScan(cfg *scanConfig) {
 			}
 
 			// Only update progress bar if not cancelled
+			// progressbar.Add is internally thread-safe (uses atomic operations)
 			if cfg.interruptData == nil || !cfg.interruptData.IsCancelled() {
-				mu.Lock()
 				_ = bar.Add(1)
-				mu.Unlock()
 			}
 		}(ip)
 	}

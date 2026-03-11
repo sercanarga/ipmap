@@ -20,7 +20,7 @@ func CalcIPAddress(cidr string) ([]string, error) {
 
 	// Check for excessively large CIDR blocks to prevent memory exhaustion
 	ones, bits := ipnet.Mask.Size()
-	if bits-ones > 20 { // More than ~1 million IPs
+	if bits-ones >= 20 { // 1 million or more IPs
 		maxIPs := 1 << uint(bits-ones)
 		return nil, fmt.Errorf("CIDR block /%d too large: would generate %d IPs (max: %d)", ones, maxIPs, MaxIPsPerBlock)
 	}

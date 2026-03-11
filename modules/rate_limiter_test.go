@@ -100,6 +100,42 @@ func TestRateLimiterSetRate(t *testing.T) {
 	}
 }
 
+func TestRateLimiterTokenRefill(t *testing.T) {
+	// Create limiter with high rate (100/s) and small burst (2)
+	rl := NewRateLimiter(100, 2)
+
+	// Exhaust all burst tokens
+	if !rl.TryAcquire() {
+		t.Error("First TryAcquire should succeed")
+	}
+	if !rl.TryAcquire() {
+		t.Error("Second TryAcquire should succeed")
+	}
+	// Burst exhausted
+	if rl.TryAcquire() {
+		t.Error("Third TryAcquire should fail (burst exhausted)")
+	}
+
+	// Wait enough for at least 1 token to refill (100/s = 10ms per token)
+	time.Sleep(50 * time.Millisecond)
+
+	// Should be able to acquire again after refill
+	if !rl.TryAcquire() {
+		t.Error("TryAcquire should succeed after token refill")
+	}
+}
+
+func TestRateLimiterDisabledTryAcquire(t *testing.T) {
+	rl := NewRateLimiter(0, 0)
+
+	// Disabled limiter should always succeed
+	for i := 0; i < 100; i++ {
+		if !rl.TryAcquire() {
+			t.Error("Disabled rate limiter TryAcquire should always return true")
+		}
+	}
+}
+
 func BenchmarkRateLimiterWait(b *testing.B) {
 	rl := NewRateLimiter(0, 0) // Disabled for benchmark
 	for i := 0; i < b.N; i++ {

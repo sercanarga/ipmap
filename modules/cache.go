@@ -153,12 +153,17 @@ func (c *Cache) GetProgress() (scanned int, total int, results int) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	totalIPs := len(c.Data.ScannedIPs)
-	// Use IP blocks to estimate total if available
+	// Calculate actual total from IP blocks using CIDR parsing
 	if len(c.Data.IPBlocks) > 0 {
 		totalIPs = 0
-		for range c.Data.IPBlocks {
-			// Approximate: each block contributes IPs (exact count requires CIDR parsing)
-			totalIPs += 256 // rough estimate per block
+		for _, block := range c.Data.IPBlocks {
+			ips, err := CalcIPAddress(block)
+			if err != nil {
+				// Fallback to rough estimate if CIDR parsing fails
+				totalIPs += 256
+				continue
+			}
+			totalIPs += len(ips)
 		}
 	}
 	return len(c.Data.ScannedIPs), totalIPs, len(c.Data.Results)

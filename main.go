@@ -59,7 +59,9 @@ func main() {
 			config.VerboseLog("Loaded config from: %s", *configFile)
 		}
 	} else if autoConfig := config.FindConfigFile(); autoConfig != "" {
-		if cfg, err := config.LoadConfigFile(autoConfig); err == nil {
+		if cfg, err := config.LoadConfigFile(autoConfig); err != nil {
+			config.WarnLog("Failed to parse auto-found config file '%s': %v", autoConfig, err)
+		} else {
 			config.ApplyFileConfig(cfg)
 			config.VerboseLog("Auto-loaded config from: %s", autoConfig)
 		}
@@ -81,7 +83,9 @@ func main() {
 		case "ipv6":
 			config.EnableIPv6 = *ipv6
 		case "dns":
-			config.DNSServers = strings.Split(*dns, ",")
+			if *dns != "" {
+				config.DNSServers = strings.Split(*dns, ",")
+			}
 		case "output-dir":
 			config.OutputDir = *outputDir
 		case "insecure":
@@ -250,9 +254,15 @@ func setupInterruptHandler() {
 		// Give goroutines a moment to stop
 		time.Sleep(100 * time.Millisecond)
 
+		// Guard nil check before accessing interruptData methods
+		if interruptData == nil {
+			fmt.Println("\n[!] No results to export")
+			os.Exit(0)
+		}
+
 		// Use thread-safe getter to avoid race with worker goroutines
 		websites := interruptData.GetWebsites()
-		if interruptData != nil && len(websites) > 0 {
+		if len(websites) > 0 {
 			fmt.Printf("\n[*] Found %d websites before interruption\n", len(websites))
 			fmt.Print("\nDo you want to export the results? (Y/n): ")
 
